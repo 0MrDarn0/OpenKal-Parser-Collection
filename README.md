@@ -11,5 +11,5 @@ Python 3.5 along with Pillow.
 - [ ] ENV
 - [ ] MAP
 - [X] DAT
-- [ ] GTX
+- [X] GTX
 - [ ] GB
