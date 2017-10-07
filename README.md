@@ -10,6 +10,6 @@ Python 3.5 along with Pillow.
 - [ ] OPL
 - [ ] ENV
 - [ ] MAP
-- [ ] DAT
+- [X] DAT
 - [ ] GTX
 - [ ] GB
