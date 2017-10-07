@@ -4,14 +4,14 @@ import sys
 import struct
 import argparse
 
-def main(ipath, key):
+def main(path, key):
     with open('../resources/table_decrypt') as data:
         mapping = [[int(v, 16) for v in line.split()] for line in data]
 
-    opath = ipath + '.txt'
+    outp = path + '.txt'
 
-    with open(ipath, 'rb') as ifstream, \
-         open(opath, 'wb') as ofstream:
+    with open(path, 'rb') as ifstream, \
+         open(outp, 'wb') as ofstream:
         for byte in iter(lambda: ifstream.read(1), b''):
             ofstream.write(struct.pack('<B', mapping[key][ord(byte)]))
 
