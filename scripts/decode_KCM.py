@@ -20,7 +20,7 @@ def main(path):
         version = struct.unpack('<IIIIIIIII', stream.read(9 * 4))
 
         if version != 7:
-            sys.exit("Only KCM version 7 is supported; is: " + str(version))
+            sys.exit('Only KCM version 7 is supported; is: ' + str(version))
 
         alpha_info = struct.unpack('BBBBBBBB', stream.read(8))
         decal_info = struct.unpack('BBBBBBBB', stream.read(8))
