@@ -25,8 +25,8 @@ def main(path):
         ofstream.write(struct.pack('<B', ord(' ')))
         ofstream.write(struct.pack('<I', 124))
 
-        # Next 56 bytes in GTX are encrypted
-        for i in range(8, 65):
+        # Next 64 bytes in GTX are encrypted
+        for i in range(63):
             ofstream.write(struct.pack('<B',
                     mapping[4][ord(ifstream.read(1))]))
 
