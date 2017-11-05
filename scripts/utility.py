@@ -35,10 +35,30 @@ _CRC32_TABLE = [
 
 CRC_SEED_MDL = 0x35BFD8A4 # .GB
 CRC_SEED_MAP = 0x35BFD8A5 # .MAP
-CRC_SEED_OPL = 0xA0B0C0D0 # .OPL
+CRC_SEED_OPL = 0xA0B0C0D0 # .OPL, .KCM, .ENV
 
 def compute_crc32(crc32, values):
     for value in values:
         crc32 = _CRC32_TABLE[(crc32 ^ value) & 0xFF] ^ (crc32 >> 8)
 
     return crc32
+
+
+def _get_crypt_table(path):
+    with open(path) as data:
+        return [[int(v, 16) for v in line.split()] for line in data]
+
+_TABLE_ENCRYPT = _get_crypt_table('../resources/table_encrypt')
+_TABLE_DECRYPT = _get_crypt_table('../resources/table_decrypt')
+
+def decrypt_s(key, value):
+    return _TABLE_DECRYPT[key][value]
+
+def encrypt_s(key, value):
+    return _TABLE_ENCRYPT[key][value]
+
+def decrypt(key, values):
+    return [_TABLE_DECRYPT[key][v] for v in values]
+
+def encrypt(key, values):
+    return [_TABLE_ENCRYPT[key][v] for v in values]
