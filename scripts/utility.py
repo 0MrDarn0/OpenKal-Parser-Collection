@@ -1,3 +1,5 @@
+import struct
+
 _CRC32_TABLE = [
     0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3,
     0x0EDB8832, 0x79DCB8A4, 0xE0D5E91E, 0x97D2D988, 0x09B64C2B, 0x7EB17CBD, 0xE7B82D07, 0x90BF1D91,
@@ -62,3 +64,25 @@ def decrypt(key, values):
 
 def encrypt(key, values):
     return [_TABLE_ENCRYPT[key][v] for v in values]
+
+
+def read_string(stream):
+    n = struct.unpack('<I', stream.read(4))[0]
+
+    return struct.unpack('%ds' % n,
+            stream.read(n))[0].decode("utf-8")
+
+def read_d3dx_vector3(stream):
+    return {
+        'x': struct.unpack('<f', stream.read(4))[0],
+        'y': struct.unpack('<f', stream.read(4))[0],
+        'z': struct.unpack('<f', stream.read(4))[0]
+    }
+
+def read_d3dx_quaternion(stream):
+    return {
+        'x': struct.unpack('<f', stream.read(4))[0], # sin(theta/2) * axis.x
+        'y': struct.unpack('<f', stream.read(4))[0], # sin(theta/2) * axis.y
+        'z': struct.unpack('<f', stream.read(4))[0], # sin(theta/2) * axis.z
+        'w': struct.unpack('<f', stream.read(4))[0], # cos(theta/2)
+    }
