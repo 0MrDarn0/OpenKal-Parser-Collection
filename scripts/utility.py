@@ -1,3 +1,4 @@
+import numpy
 import struct
 
 _CRC32_TABLE = [
@@ -66,23 +67,42 @@ def encrypt(key, values):
     return [_TABLE_ENCRYPT[key][v] for v in values]
 
 
-def read_string(stream):
-    n = struct.unpack('<I', stream.read(4))[0]
+def read_string_var(stream, size):
+    return struct.unpack('%ds' % size,
+            stream.read(size))[0]
 
-    return struct.unpack('%ds' % n,
-            stream.read(n))[0].decode("utf-8")
+def read_string_pre(stream):
+    return read_string_pre(
+            struct.unpack('<I', stream.read(4))[0])
+
+def read_string_null(stream):
+    result = []
+
+    while True:
+        char = stream.read(1)
+
+        if char == b'\0':
+            break
+
+        result.append(struct.unpack('<c', char)[0])
+
+    return result
+
+def read_d3dx_vector2(stream):
+    return numpy.array(list(
+            struct.unpack('<2f', stream.read(2 * 4))))
 
 def read_d3dx_vector3(stream):
-    return {
-        'x': struct.unpack('<f', stream.read(4))[0],
-        'y': struct.unpack('<f', stream.read(4))[0],
-        'z': struct.unpack('<f', stream.read(4))[0]
-    }
+    return numpy.array(list(
+            struct.unpack('<3f', stream.read(3 * 4))))
 
-def read_d3dx_quaternion(stream):
-    return {
-        'x': struct.unpack('<f', stream.read(4))[0], # sin(theta/2) * axis.x
-        'y': struct.unpack('<f', stream.read(4))[0], # sin(theta/2) * axis.y
-        'z': struct.unpack('<f', stream.read(4))[0], # sin(theta/2) * axis.z
-        'w': struct.unpack('<f', stream.read(4))[0], # cos(theta/2)
-    }
+def read_d3dx_vector4(stream):
+    return numpy.array(list(
+            struct.unpack('<4f', stream.read(4 * 4))))
+
+def read_d3dx_matrix4(stream):
+    return numpy.matrix([
+            list(struct.unpack('<4f', stream.read(4 * 4))),
+            list(struct.unpack('<4f', stream.read(4 * 4))),
+            list(struct.unpack('<4f', stream.read(4 * 4))),
+            list(struct.unpack('<4f', stream.read(4 * 4)))])

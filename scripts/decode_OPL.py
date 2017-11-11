@@ -18,10 +18,10 @@ def main(path):
         models = [None] * struct.unpack('<I', stream.read(4))[0]
         for i in range(len(models)):
             models[i] = {
-                'path'     : utility.read_string(stream).replace('\\', '/'),
-                'position' : utility.read_d3dx_vector3(stream),
-                'rotation' : utility.read_d3dx_quaternion(stream),
-                'scale'    : utility.read_d3dx_vector3(stream)
+                'path'     : utility.read_string_pre(stream).replace('\\', '/'),
+                'position' : utility.read_d3dx_vector3(stream).tolist(),
+                'rotation' : utility.read_d3dx_vector4(stream).tolist(),
+                'scale'    : utility.read_d3dx_vector3(stream).tolist()
             }
 
         # Verify
