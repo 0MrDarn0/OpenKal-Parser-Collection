@@ -1,7 +1,7 @@
+#!/usr/bin/python3.5
+
 import sys
 import utility
-import pyassimp
-import ctypes
 
 from struct import unpack
 
@@ -20,55 +20,109 @@ class GBMaterialKey:
         self.frame = unpack('<IHIfI', stream.read(18))
 
 
-class GBMesh:
-    __FT_LIST = 0
+class GBMesh(object):
+    __slots__ = [
+        'name',
+        'material',
+        'vertices',
+        'bone_indexes',
+        'face_indexes',
+    ]
 
-    def __init__(self, stream, version):
-        # Header
+    # Face types
+    _FT_LIST  = 0
+    _FT_STRIP = 1
+    _FT_END   = 2
 
-        self.name,             \
-        self.material_ref,     \
-        self.vertex_type,      \
-        self.face_type,        \
-        self.vertex_count,     \
-        self.face_index_count, \
-        self.bone_index_count = unpack('<IiBBHHB', stream.read(15))
+    # Vertex types
+    _VT_RIGID        = 0
+    _VT_BLEND1       = 1
+    _VT_BLEND2       = 2
+    _VT_BLEND3       = 3
+    _VT_BLEND4       = 4
+    _VT_RIGID_DOUBLE = 5
+    _VT_END          = 6
 
-        if version < 11 and self.vertex_type > 0:
-            self.vertex_type -= 1
+    def _correct(self, indexes):
+        result = []
+        for a, b, c in zip(*[iter(indexes)] * 3):
+            if a == b or a == c or b == c:
+                continue
 
-        # Data
+            result.append((a, b, c))
+
+        return result
+
+    def _unstrip(self, indexes):
+        """Converts an index strip to a index list."""
+        result = []
+        for i in range(len(indexes) - 2):
+            if i & 1:
+                result.extend([indexes[i], indexes[i + 1], indexes[i + 2]])
+            else:
+                result.extend([indexes[i], indexes[i + 2], indexes[i + 1]])
+
+        return result
+
+    def _parse_vertex(self, stream, v_type):
+        vertex = {'v' : utility.read_d3dx_vector3(stream)}
+
+        # See: Direct3D 9 - Indexed Vertex Blending
+        if v_type >= 1 and v_type <= 4:
+            vertex['indexes'] = unpack('<I', stream.read(4))
+
+        if v_type == 2:
+            vertex['blend'] = list(unpack('<1f', stream.read(4)))
+        elif v_type == 3:
+            vertex['blend'] = list(unpack('<2f', stream.read(8)))
+        elif v_type == 4:
+            vertex['blend'] = list(unpack('<3f', stream.read(12)))
+
+        # Texture coordinate(s) and vertex normal
+        vertex['vn'] = utility.read_d3dx_vector3(stream)
+        vertex['t0'] = utility.read_d3dx_vector2(stream)
+
+        if v_type >= 5:
+            vertex['t1'] = utility.read_d3dx_vector2(stream)
+
+        return vertex
+
+    def parse(self, stream, gb_version):
+        self.name, self.material = unpack('<Ii', stream.read(8)) # i intentional
+
+        v_type,  \
+        f_type,  \
+        v_count, \
+        f_count, \
+        b_count = unpack('<BBHHB', stream.read(7))
+
+        # Type definition changed in version 12
+        if gb_version < 11 and v_type > 0:
+            v_type = v_type - 1
 
         self.vertices = []
         self.bone_indexes = []
         self.face_indexes = []
 
-        for _ in range(self.bone_index_count):
-            self.bone_indexes.append(unpack('<B', stream.read(1)))
+        for _ in range(b_count):
+            self.bone_indexes.append(unpack('<B', stream.read(1))[0])
 
-        for _ in range(self.vertex_count):
-            vertex = {'v' : utility.read_d3dx_vector3(stream)}
+        for _ in range(v_count):
+            self.vertices.append(self._parse_vertex(stream, v_type))
 
-            if self.vertex_type >= 1 and self.vertex_type <= 4:
-                vertex['indices'] = unpack('<I', stream.read(4))
-
-            if self.vertex_type == 2:
-                vertex['blend'] = list(unpack('<1f', stream.read(4)))
-            elif self.vertex_type == 3:
-                vertex['blend'] = list(unpack('<2f', stream.read(8)))
-            elif self.vertex_type == 4:
-                vertex['blend'] = list(unpack('<3f', stream.read(12)))
-
-            vertex['n'] = utility.read_d3dx_vector3(stream)
-            vertex['t'] = utility.read_d3dx_vector2(stream)
-
-            if self.vertex_type >= 5:
-                vertex['t'] = utility.read_d3dx_vector2(stream)
-
-            self.vertices.append(vertex)
-
-        for _ in range(self.face_index_count):
+        for _ in range(f_count):
             self.face_indexes.append(unpack('<H', stream.read(2))[0])
+
+        # _FT_STRIP and _FT_END must be unstripped, correction is optional
+        if f_type:
+            self.face_indexes = self._unstrip(self.face_indexes)
+            self.face_indexes = self._correct(self.face_indexes)
+        else:
+            self.face_indexes = self._correct(self.face_indexes)
+
+    def write(self, stream, gb_version):
+        raise NotImplementedError
+
 
 # Encodes GB_ANIM_HEADER and GB_KEYFRAME
 class GBAnimFile:
@@ -76,7 +130,7 @@ class GBAnimFile:
         self.option, self.keyframe_count = unpack('<IH', stream.read(6))
 
         self.keyframes = []
-        for _ in range(keyframe_count):
+        for _ in range(self.keyframe_count):
             keyframe = {
                 'time'   : unpack('<H', stream.read(2))[0],
                 'option' : unpack('<I', stream.read(4))[0]
@@ -85,9 +139,9 @@ class GBAnimFile:
             self.keyframes.append(keyframe)
 
         self.animation_indexes = []
-        for _ in range(keyframe_count):
+        for _ in range(self.keyframe_count):
             for _ in range(bone_count):
-                self.animations.append(unpack('<H', stream.read(2)))
+                self.animation_indexes.append(unpack('<H', stream.read(2)))
 
 
 class GBAnim:
@@ -181,7 +235,9 @@ class GBFile:
 
         self.meshes = []
         for _ in range(self.mesh_count):
-            self.meshes.append(GBMesh(stream, self.version))
+            mesh = GBMesh()
+            mesh.parse(stream, self.version)
+            self.meshes.append(mesh)
 
         self.anim_files = []
         for _ in range(self.anim_count_file):
