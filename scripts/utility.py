@@ -67,6 +67,15 @@ def encrypt(key, values):
     return [_TABLE_ENCRYPT[key][v] for v in values]
 
 
+class ValidationError(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
+class VersionError(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
+
 def read_string_var(stream, size):
     return struct.unpack('%ds' % size,
             stream.read(size))[0]

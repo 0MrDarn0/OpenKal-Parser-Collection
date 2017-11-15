@@ -4,6 +4,8 @@ import sys
 import utility
 
 from struct import unpack
+from utility import ValidationError
+from utility import VersionError
 
 class GBBone:
     def __init__(self, stream):
@@ -86,6 +88,9 @@ class GBMesh(object):
             vertex['t1'] = utility.read_d3dx_vector2(stream)
 
         return vertex
+
+    def _write_vertex(self, stream, v_type):
+        raise NotImplementedError
 
     def parse(self, stream, gb_version):
         self.name, self.material = unpack('<Ii', stream.read(8)) # i intentional
@@ -172,8 +177,7 @@ class GBCollisionMesh:
 
 class GBFile:
 
-    __MODEL_BONE = 1
-
+    _MODEL_BONE = 1
 
     def __init__(self, stream):
         # Header
@@ -182,6 +186,9 @@ class GBFile:
         self.bone_count, \
         self.bone,       \
         self.mesh_count = unpack('<4B', stream.read(4))
+
+        if self.version < 8 or self.version > 12:
+            raise VersionError('GB Version %d is not supported' % self.version)
 
         if self.version >= 10:
             self.checksum = unpack('<I', stream.read(4))
@@ -223,7 +230,7 @@ class GBFile:
 
         # Data
 
-        if self.bone & GBFile.__MODEL_BONE:
+        if self.bone & GBFile._MODEL_BONE:
             self.bones = []
 
             for _ in range(self.bone_count):
@@ -254,13 +261,16 @@ class GBFile:
 
         # Verify
         if stream.read(1):
-            sys.exit('Unable to parse GB, too many bytes')
+            raise ValidationError('Too many bytes in GB structure')
 
 
 def main(path):
     with open(path, 'rb') as stream:
-        gb = GBFile(stream)
+        try:
+            gb = GBFile(stream)
+        except (VersionError, ValidationError) as e:
+            print(str(e) + ' in ' + path)
 
 # Usage: python decode_GB.py path
-if __name__ == '__main__':
+if __name__ == '__main__':#
     main(sys.argv[1])
