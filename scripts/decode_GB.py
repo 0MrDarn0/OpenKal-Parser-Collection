@@ -7,19 +7,86 @@ from struct import unpack
 from utility import ValidationError
 from utility import VersionError
 
-class GBBone:
-    def __init__(self, stream):
+class GBBone(object):
+    __slots__ = [
+        'matrix',
+        'parent',
+    ]
+
+    def parse(self, stream):
         self.matrix = utility.read_d3dx_matrix4(stream)
-        self.parent = unpack('<B', stream.read(1))
+        self.parent = unpack('<B', stream.read(1))[0]
+        return self
+
+    def write(self, stream):
+        raise NotImplementedError
 
 
-class GBMaterialKey:
-    def __init__(self, stream):
-        self.texture,   \
-        self.mapoption, \
-        self.option,    \
-        self.power,     \
+class GBAnimation(object):
+    __slots__ = [
+        'option',
+        'keyframe_times',
+        'keyframe_indexes',
+    ]
+
+    def parse(self, stream, b_count):
+        self.option, k_count = unpack('<IH', stream.read(6))
+
+        self.keyframe_times = []
+        self.keyframe_indexes = []
+
+        for _ in range(k_count):
+            self.keyframe_times.append({
+                'time'   : unpack('<H', stream.read(2))[0],
+                'option' : unpack('<I', stream.read(4))[0],
+            })
+
+        for _ in range(k_count):
+            for _ in range(b_count):
+                self.keyframe_indexes.append(unpack('<H', stream.read(2))[0])
+
+        return self
+
+    def write(self, stream):
+        raise NotImplementedError
+
+
+class GBTransformation(object):
+    __slots__ = [
+        'position',
+        'rotation',
+        'scale',
+    ]
+
+    def parse(self, stream):
+        self.position = utility.read_d3dx_vector3(stream)
+        self.rotation = utility.read_d3dx_vector4(stream)
+        self.scale = utility.read_d3dx_vector3(stream)
+        return self
+
+    def write(self, stream):
+        raise NotImplementedError
+
+
+class GBMaterialKey(object):
+    __slots__ = [
+        'texture',
+        'option_map',
+        'option',
+        'power',
+        'frame',
+    ]
+
+    def parse(self, stream):
+        self.texture,    \
+        self.option_map, \
+        self.option,     \
+        self.power,      \
         self.frame = unpack('<IHIfI', stream.read(18))
+        return self
+
+    def write(self, stream):
+        raise NotImplementedError
 
 
 class GBMesh(object):
@@ -125,152 +192,153 @@ class GBMesh(object):
         else:
             self.face_indexes = self._correct(self.face_indexes)
 
+        return self
+
     def write(self, stream, gb_version):
         raise NotImplementedError
 
 
-# Encodes GB_ANIM_HEADER and GB_KEYFRAME
-class GBAnimFile:
-    def __init__(self, stream, bone_count):
-        self.option, self.keyframe_count = unpack('<IH', stream.read(6))
+class GBCollisionMesh(object):
+    __slots__ = [
+        'minimum',
+        'maximum',
+        'vertices',
+        'face_indexes',
+    ]
 
-        self.keyframes = []
-        for _ in range(self.keyframe_count):
-            keyframe = {
-                'time'   : unpack('<H', stream.read(2))[0],
-                'option' : unpack('<I', stream.read(4))[0]
-            }
-
-            self.keyframes.append(keyframe)
-
-        self.animation_indexes = []
-        for _ in range(self.keyframe_count):
-            for _ in range(bone_count):
-                self.animation_indexes.append(unpack('<H', stream.read(2)))
-
-
-class GBAnim:
-    def __init__(self, stream):
-        self.position = utility.read_d3dx_vector3(stream)
-        self.rotation = utility.read_d3dx_vector4(stream)
-        self.scale = utility.read_d3dx_vector3(stream)
-
-
-class GBCollisionMesh:
-    def __init__(self, stream):
-        self.vertex_count, self.face_count = unpack('<HH', stream.read(4))
+    def parse(self, stream):
+        v_count, \
+        f_count = unpack('<HH', stream.read(4))
 
         self.minimum = utility.read_d3dx_vector3(stream)
         self.maximum = utility.read_d3dx_vector3(stream)
 
         self.vertices = []
-        for _ in range(self.vertex_count):
+        for _ in range(v_count):
             self.vertices.append(list(unpack('<3H', stream.read(6))))
 
-        self.faces = []
-        for _ in range(self.face_count):
-            self.faces.append(list(unpack('<3H', stream.read(6))))
+        self.face_indexes = []
+        for _ in range(f_count):
+            self.face_indexes.append(list(unpack('<3H', stream.read(6))))
 
         # Discard OctTree
-        stream.read((self.face_count - 1) * 12)
+        stream.read((f_count - 1) * 12)
+
+        return self
+
+    def write(self, stream):
+        raise NotImplementedError
 
 
-class GBFile:
+class GBFile(object):
+    __slots__ = [
+        'bounding_box_min',
+        'bounding_box_max',
+        'bones',
+        'materials',
+        'meshes',
+        'animations',
+        'transformations',
+        'collision_mesh',
+        'string',
+    ]
 
     _MODEL_BONE = 1
 
-    def __init__(self, stream):
-        # Header
+    def parse(self, stream):
+        version,    \
+        bone_count, \
+        bone,       \
+        mesh_count = unpack('<4B', stream.read(4))
 
-        self.version,    \
-        self.bone_count, \
-        self.bone,       \
-        self.mesh_count = unpack('<4B', stream.read(4))
+        if version < 8 or version > 12:
+            raise VersionError('GB Version %d is unsupported' % version)
 
-        if self.version < 8 or self.version > 12:
-            raise VersionError('GB Version %d is not supported' % self.version)
+        if version >= 10:
+            checksum = unpack('<I', stream.read(4))
 
-        if self.version >= 10:
-            self.checksum = unpack('<I', stream.read(4))
+        if version >= 12:
+            name = utility.read_string_var(stream, 64) # encrypted, key 4
 
-        if self.version >= 12:
-            self.name = utility.read_string_var(stream, 64) # encrypted, key 4
+        option = unpack('<I', stream.read(4))[0]
 
-        self.option = unpack('<I', stream.read(4))[0]
+        # The vertex, face, bone and keyframe counts are unused
 
-        if self.version >= 9:
-            self.vertex_count = list(unpack('<12H', stream.read(24)))
+        if version >= 9:
+            vertex_count = list(unpack('<12H', stream.read(24)))
         else:
-            self.vertex_count = list(unpack('<6H', stream.read(12)))
+            vertex_count = list(unpack('<6H', stream.read(12)))
 
-        self.index_count,      \
-        self.index_count_bone, \
-        self.keyframe_count = unpack('<3H', stream.read(6))
+        face_index_count, \
+        bone_index_count, \
+        keyframe_count = unpack('<3H', stream.read(6))
 
-        if self.version >= 9:
-            _, self.string_size, self.cls_size = unpack('<HII', stream.read(10))
+        if version >= 9:
+            _, string_size, cls_size = unpack('<HII', stream.read(10))
         else:
-            _, self.string_size, self.cls_size = unpack('<HHH', stream.read(6))
+            _, string_size, cls_size = unpack('<HHH', stream.read(6))
 
-        self.anim_count, \
-        self.anim_count_file = unpack('<HB', stream.read(3))
+        transformation_count, \
+        animation_count = unpack('<HB', stream.read(3))
 
-        if self.version >= 9:
+        if version >= 9:
             stream.read(1)
 
-        self.material_count, \
-        self.material_count_frame = unpack('<HH', stream.read(4))
+        material_count, \
+        material_count_frame = unpack('<HH', stream.read(4))
 
-        if self.version >= 11:
+        if version >= 11:
             self.bounding_box_min = utility.read_d3dx_vector3(stream)
             self.bounding_box_max = utility.read_d3dx_vector3(stream)
 
-        if self.version >= 9:
+        if version >= 9:
             stream.read(16)
 
         # Data
 
-        if self.bone & GBFile._MODEL_BONE:
+        if bone & GBFile._MODEL_BONE:
             self.bones = []
 
-            for _ in range(self.bone_count):
-                self.bones.append(GBBone(stream))
+            for _ in range(bone_count):
+                self.bones.append(GBBone().parse(stream))
 
-        self.materials_keys = []
-        for _ in range(self.material_count):
-            self.materials_keys.append(GBMaterialKey(stream))
+        self.materials = []
+        for _ in range(material_count):
+            self.materials.append(GBMaterialKey().parse(stream))
 
         self.meshes = []
-        for _ in range(self.mesh_count):
-            mesh = GBMesh()
-            mesh.parse(stream, self.version)
-            self.meshes.append(mesh)
+        for _ in range(mesh_count):
+            self.meshes.append(GBMesh().parse(stream, version))
 
-        self.anim_files = []
-        for _ in range(self.anim_count_file):
-            self.anim_files.append(GBAnimFile(stream, self.bone_count))
+        self.animations =  []
+        for i in range(animation_count):
+            self.animations.append(GBAnimation().parse(stream, bone_count))
 
-        self.anim = []
-        for _ in range(self.anim_count):
-            self.anim.append(GBAnim(stream))
+        self.transformations = []
+        for i in range(transformation_count):
+            self.transformations.append(GBTransformation().parse(stream))
 
-        if self.cls_size:
-            self.collision_mesh = GBCollisionMesh(stream)
+        if cls_size:
+            self.collision_mesh = GBCollisionMesh().parse(stream)
 
-        self.string = utility.read_string_var(stream, self.string_size)
+        self.string = utility.read_string_var(stream, string_size)
 
         # Verify
         if stream.read(1):
             raise ValidationError('Too many bytes in GB structure')
 
+    def write(self, stream):
+        raise NotImplementedError
+
 
 def main(path):
     with open(path, 'rb') as stream:
         try:
-            gb = GBFile(stream)
+            gb = GBFile().parse(stream)
+
         except (VersionError, ValidationError) as e:
             print(str(e) + ' in ' + path)
 
 # Usage: python decode_GB.py path
-if __name__ == '__main__':#
+if __name__ == '__main__':
     main(sys.argv[1])
