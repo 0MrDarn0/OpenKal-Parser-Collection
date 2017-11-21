@@ -12,4 +12,4 @@ A Python 3.5 environment with pillow and numpy.
 - [ ] MAP
 - [X] DAT
 - [X] GTX
-- [ ] GB
+- [X] GB, export not yet implemented
