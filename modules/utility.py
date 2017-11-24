@@ -1,5 +1,6 @@
 import numpy
 import struct
+import os
 
 _CRC32_TABLE = [
     0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3,
@@ -47,12 +48,14 @@ def compute_crc32(crc32, values):
     return crc32
 
 
-def _get_crypt_table(path):
+def _get_crypt_table(name):
+    path = os.path.join(os.path.dirname(__file__), 'resources', name)
+
     with open(path) as data:
         return [[int(v, 16) for v in line.split()] for line in data]
 
-_TABLE_ENCRYPT = _get_crypt_table('../resources/table_encrypt')
-_TABLE_DECRYPT = _get_crypt_table('../resources/table_decrypt')
+_TABLE_ENCRYPT = _get_crypt_table('table_encrypt')
+_TABLE_DECRYPT = _get_crypt_table('table_decrypt')
 
 def decrypt_s(key, value):
     return _TABLE_DECRYPT[key][value]

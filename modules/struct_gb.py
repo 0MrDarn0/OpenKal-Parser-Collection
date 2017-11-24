@@ -339,6 +339,6 @@ def main(path):
         except (VersionError, ValidationError) as e:
             print(str(e) + ' in ' + path)
 
-# Usage: python decode_GB.py path
+# Usage: python decode_GB.py path; performs a parse check, nothing else
 if __name__ == '__main__':
     main(sys.argv[1])
