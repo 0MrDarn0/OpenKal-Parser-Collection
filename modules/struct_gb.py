@@ -323,9 +323,15 @@ class GBFile(object):
 
         self.string = utility.read_string_var(stream, string_size)
 
+        # Apply string to compontents
+        for mesh in self.meshes:
+            mesh.name = self.string[mesh.name:].partition(b'\0')[0].decode('cp949')
+
         # Verify
         if stream.read(1):
             raise ValidationError('Too many bytes in GB structure')
+
+        return self
 
     def write(self, stream):
         raise NotImplementedError
