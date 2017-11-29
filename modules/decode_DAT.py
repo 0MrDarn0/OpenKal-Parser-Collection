@@ -1,32 +1,31 @@
 #!/usr/bin/python3.5
 
-import sys
-import struct
 import argparse
+import utility
 
-def main(path, key):
-    with open('../resources/table_decrypt') as data:
-        mapping = [[int(v, 16) for v in line.split()] for line in data]
 
-    outp = path + '.txt'
+def main(ipath, opath, key):
+    with open(ipath, 'rb') as ifstream, \
+            open(opath, 'wb') as ofstream:
 
-    with open(path, 'rb') as ifstream, \
-         open(outp, 'wb') as ofstream:
-        for byte in iter(lambda: ifstream.read(1), b''):
-            ofstream.write(struct.pack('<B', mapping[key][ord(byte)]))
+        for data in iter(lambda: ifstream.read(128 * 1024), b''):
+            ofstream.write(bytearray(utility.decrypt(key, data)))
 
-# Config: key = 47
-# Others: key = 4
 
-# Usage: python decode_DAT.py path key
 if __name__ == '__main__':
+    # Usage: python decode_GTX.py key input (DAT) output (TXT)
     parser = argparse.ArgumentParser()
-    parser.add_argument('path', type=str)
+
+    # Config: key = 47
+    # Others: key = 4
     parser.add_argument('key', type=int)
+
+    parser.add_argument('ipath', type=str, help='the file to be read')
+    parser.add_argument('opath', type=str, help='the file to be written')
 
     args = parser.parse_args()
 
     if args.key < 0 or args.key > 99:
-        parser.error("The key must be in [0, 1, ..., 99]")
+        parser.error('The key must be in [0, 1, ..., 99]')
 
-    main(args.path, args.key)
+    main(args.ipath, args.opath, args.key)
