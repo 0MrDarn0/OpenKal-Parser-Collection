@@ -37,7 +37,7 @@ _CRC32_TABLE = [
     0xB3667A2E, 0xC4614AB8, 0x5D681B02, 0x2A6F2B94, 0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D,
 ]
 
-CRC_SEED_MDL = 0x35BFD8A4 # .GB
+CRC_SEED_GB  = 0x35BFD8A4 # .GB
 CRC_SEED_MAP = 0x35BFD8A5 # .MAP
 CRC_SEED_OPL = 0xA0B0C0D0 # .OPL, .KCM, .ENV
 
@@ -79,26 +79,31 @@ class VersionError(Exception):
         super().__init__(message)
 
 
-def read_string_var(stream, size):
-    return struct.unpack('%ds' % size,
-            stream.read(size))[0]
+def get_root_path(path):
+    """Return the asset root directory"""
+    path = os.path.split(path)
 
-def read_string_pre(stream):
-    return read_string_pre(
-            struct.unpack('<I', stream.read(4))[0])
+    if not path[0] or not path[1]:
+        return ''
 
-def read_string_null(stream):
-    result = []
+    if path[1] == 'data' or path[1] == 'map':
+        return path[0]
 
-    while True:
-        char = stream.read(1)
+    return get_root_path(path[0])
 
-        if char == b'\0':
-            break
+def get_common_path(path):
+    return os.path.join(get_root_path(path),
+            os.path.join('data', 'objects', 'common'))
 
-        result.append(struct.unpack('<c', char)[0])
 
-    return result
+def read_d3d_color(stream):
+    r, g, b, a = struct.unpack('<4B', stream.read(4))
+    return (
+        r / 255,
+        g / 255,
+        b / 255,
+        a / 255,
+    )
 
 def read_d3dx_vector2(stream):
     return numpy.array(list(
@@ -113,8 +118,33 @@ def read_d3dx_vector4(stream):
             struct.unpack('<4f', stream.read(4 * 4))))
 
 def read_d3dx_matrix4(stream):
-    return numpy.matrix([
-            list(struct.unpack('<4f', stream.read(4 * 4))),
-            list(struct.unpack('<4f', stream.read(4 * 4))),
-            list(struct.unpack('<4f', stream.read(4 * 4))),
-            list(struct.unpack('<4f', stream.read(4 * 4)))])
+    return numpy.array(list(
+            struct.unpack('<16f', stream.read(16 * 4)))).reshape((4, 4))
+
+def read_range_pre(stream):
+    return stream.read(struct.unpack('<I', stream.read(4)))
+
+def read_range_zero(stream):
+    result = b''
+
+    while True:
+        char = stream.read(1)
+
+        if char == b'\0':
+            break
+
+        result += char
+
+    return result
+
+def read_string_pre(stream, offset=None, charset='cp949'):
+    if offset is not None:
+        stream.seek(offset)
+
+    return read_range_pre(stream).decode(charset)
+
+def read_string_zero(stream, offset=None, charset='cp949'):
+    if offset is not None:
+        stream.seek(offset)
+
+    return read_range_zero(stream).decode(charset)
