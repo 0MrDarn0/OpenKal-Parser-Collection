@@ -1,5 +1,6 @@
 #!/usr/bin/python3.5
 
+import io
 import sys
 import utility
 
@@ -68,21 +69,58 @@ class GBTransformation(object):
         raise NotImplementedError
 
 
-class GBMaterialKey(object):
+class GBMaterial(object):
     __slots__ = [
         'texture',
-        'option_map',
-        'option',
-        'power',
-        'frame',
+        'texture_off',
+        'texture_rot',
+        'options',
+        'light_a',
+        'light_d',
+        'light_s',
+        'opacity',
     ]
+    
+    _OPTION_TWOSIDED      = 1
+    _OPTION_MAP_OPACITY   = 2
+    _OPTION_MAP_ALPHA_RGB = 4
+    _OPTION_SPECULAR      = 8
+    _OPTION_LIGHT         = 32
+    _OPTION_LIGHTMAP      = 256
+    _OPTION_FX            = 512
+
+    def parse_descriptor(self, descriptor):
+        self.texture = utility.read_string_zero(descriptor, self.texture)
+
+        descriptor.seek(self.light_a)
+        self.light_a = utility.read_d3d_color(descriptor) # ambient
+        self.light_d = utility.read_d3d_color(descriptor) # diffuse
+        self.light_s = utility.read_d3d_color(descriptor) # specular
+        self.opacity = unpack('<f', descriptor.read(4))[0]
+
+        self.texture_off = utility.read_d3dx_vector2(descriptor)
+        self.texture_rot = utility.read_d3dx_vector3(descriptor)
+
+        if not self.texture_off.any():
+            self.texture_off = None
+
+        if not self.texture_rot.any():
+            self.texture_rot = None
+
+    def write_descriptor(self, descriptor):
+        raise NotImplementedError
 
     def parse(self, stream):
-        self.texture,    \
-        self.option_map, \
-        self.option,     \
-        self.power,      \
-        self.frame = unpack('<IHIfI', stream.read(18))
+        # Texture, option and light_a are descriptor indexes
+        # _ (1) = option
+        # _ (2) = power
+
+        self.texture, \
+        self.options, \
+        _,            \
+        _,            \
+        self.light_a = unpack('<IHIfI', stream.read(18))
+
         return self
 
     def write(self, stream):
@@ -151,6 +189,9 @@ class GBMesh(object):
         vertex['vn'] = utility.read_d3dx_vector3(stream)
         vertex['t0'] = utility.read_d3dx_vector2(stream)
 
+        # Flip v-coordinate
+        vertex['t0'][1] = -vertex['t0'][1]
+
         if v_type >= 5:
             vertex['t1'] = utility.read_d3dx_vector2(stream)
 
@@ -159,8 +200,17 @@ class GBMesh(object):
     def _write_vertex(self, stream, v_type):
         raise NotImplementedError
 
+    def parse_descriptor(self, descriptor):
+        self.name = utility.read_string_zero(descriptor, self.name)
+
+    def write_descriptor(self, descriptor):
+        raise NotImplementedError
+
     def parse(self, stream, gb_version):
-        self.name, self.material = unpack('<Ii', stream.read(8)) # i intentional
+        # The sources define material as a signed integer.
+        # However, it can safely be read as an unsigned one.
+
+        self.name, self.material = unpack('<II', stream.read(8))
 
         v_type,  \
         f_type,  \
@@ -235,12 +285,10 @@ class GBFile(object):
         'bounding_box_min',
         'bounding_box_max',
         'bones',
-        'materials',
         'meshes',
         'animations',
         'transformations',
         'collision_mesh',
-        'string',
     ]
 
     _MODEL_BONE = 1
@@ -258,7 +306,7 @@ class GBFile(object):
             checksum = unpack('<I', stream.read(4))
 
         if version >= 12:
-            name = utility.read_string_var(stream, 64) # encrypted, key 4
+            name = stream.read(64) # encrypted, key 4
 
         option = unpack('<I', stream.read(4))[0]
 
@@ -274,9 +322,9 @@ class GBFile(object):
         keyframe_count = unpack('<3H', stream.read(6))
 
         if version >= 9:
-            _, string_size, cls_size = unpack('<HII', stream.read(10))
+            _, descriptor_size, cls_size = unpack('<HII', stream.read(10))
         else:
-            _, string_size, cls_size = unpack('<HHH', stream.read(6))
+            _, descriptor_size, cls_size = unpack('<HHH', stream.read(6))
 
         transformation_count, \
         animation_count = unpack('<HB', stream.read(3))
@@ -302,9 +350,9 @@ class GBFile(object):
             for _ in range(bone_count):
                 self.bones.append(GBBone().parse(stream))
 
-        self.materials = []
+        materials = []
         for _ in range(material_count):
-            self.materials.append(GBMaterialKey().parse(stream))
+            materials.append(GBMaterial().parse(stream))
 
         self.meshes = []
         for _ in range(mesh_count):
@@ -321,11 +369,19 @@ class GBFile(object):
         if cls_size:
             self.collision_mesh = GBCollisionMesh().parse(stream)
 
-        self.string = utility.read_string_var(stream, string_size)
+        # Parse descriptor
+        descriptor = io.BytesIO(stream.read(descriptor_size))
 
-        # Apply string to compontents
         for mesh in self.meshes:
-            mesh.name = self.string[mesh.name:].partition(b'\0')[0].decode('cp949')
+            mesh.parse_descriptor(descriptor)
+
+        for mtrl in materials:
+            mtrl.parse_descriptor(descriptor)
+
+        # Replace material indexes with materials
+        for mesh in self.meshes:
+            mesh.material = materials[mesh.material]
+
 
         # Verify
         if stream.read(1):
