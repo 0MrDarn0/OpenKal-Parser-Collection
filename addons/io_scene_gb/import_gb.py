@@ -2,22 +2,24 @@ import bpy
 import bmesh
 import math
 import mathutils
+import os
 
 import struct_gb
 import utility
 
-def create_mesh(gb, mesh, mesh_name):
+
+def to_bstruct(self, path, name):
     bm = bmesh.new()
 
     # Vertices
-    for v in mesh.vertices:
+    for v in self.vertices:
         bm.verts.new(v['v'])
 
     bm.verts.index_update()
     bm.verts.ensure_lookup_table()
 
     # Faces
-    for f in mesh.face_indexes:
+    for f in self.face_indexes:
         bm.faces.new(bm.verts[i] for i in f)
 
     bm.faces.index_update()
@@ -28,14 +30,14 @@ def create_mesh(gb, mesh, mesh_name):
 
     for i, f in enumerate(bm.faces):
         for j, l in enumerate(f.loops):
-            v_index = mesh.face_indexes[i][j]
+            v_index = self.face_indexes[i][j]
 
             uv = l[uv_layer].uv
-            uv[0] = mesh.vertices[v_index]['t0'][0]
-            uv[1] = mesh.vertices[v_index]['t0'][1]
+            uv[0] = self.vertices[v_index]['t0'][0]
+            uv[1] = self.vertices[v_index]['t0'][1]
 
     # Create Blender mesh
-    mesh = bpy.data.meshes.new(mesh_name)
+    mesh = bpy.data.meshes.new('mesh')
 
     bm.to_mesh(mesh)
     bm.free()
@@ -43,30 +45,27 @@ def create_mesh(gb, mesh, mesh_name):
     return mesh
 
 
-def create_objects(gb):
-    result = []
+struct_gb.GBMesh.to_bstruct = to_bstruct
 
-    for i, mesh in enumerate(gb.meshes):
-        i = str(i)
 
-        result.append(bpy.data.objects.new('object_' + i,
-                create_mesh(gb, mesh, 'mesh_' + i)))
+def scene_import(context, path):
+    rot_x_pos90 = mathutils.Matrix.Rotation(math.pi / 2.0, 4, 'X')
 
-    return result
+    with open(path, 'rb') as stream:
+        gb = struct_gb.GBFile().parse(stream)
 
-def parse(context, stream):
-    gb = struct_gb.GBFile().parse(stream)
+        name = os.path.basename(path)
+        name = os.path.splitext(name)[0]
+        path = os.path.dirname(path)
 
-    rot_x_pos90 = mathutils.Matrix.Rotation(math.pi/2.0, 4, 'X')
+        scene = context.scene
 
-    scene = context.scene
+        for i, mesh in enumerate(gb.meshes):
+            obj = bpy.data.objects.new(name + '_' + str(i),
+                    mesh.to_bstruct(path, name))
 
-    for obj in create_objects(gb):
-        obj.matrix_world = rot_x_pos90 * obj.matrix_world
+            obj.matrix_world = rot_x_pos90 * obj.matrix_world
 
-        scene.objects.link(obj)
-
-    scene.update()
-
+            scene.objects.link(obj)
 
     return {'FINISHED'}

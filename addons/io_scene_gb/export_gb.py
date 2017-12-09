@@ -3,5 +3,5 @@ import bpy
 import struct_gb
 import utility
 
-def write(context, stream):
+def scene_export(context, path):
     raise NotImplementedError

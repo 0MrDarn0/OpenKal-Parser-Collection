@@ -33,10 +33,7 @@ class ImportGB(bpy.types.Operator, ImportHelper):
     filename_ext = ".gb"
 
     def execute(self, context):
-        path = self.properties.filepath
-
-        with open(path, 'rb') as stream:
-            return import_gb.parse(context, stream)
+        return import_gb.scene_import(context, self.properties.filepath)
 
 
 class ExportGB(bpy.types.Operator, ExportHelper):
@@ -50,10 +47,7 @@ class ExportGB(bpy.types.Operator, ExportHelper):
     filename_ext = ".gb"
 
     def execute(self, context):
-        path = self.properties.filepath
-
-        with open(path, 'wb') as stream:
-            return export_gb.write(context, stream)
+        return export_gb.scene_export(context, self.properties.filepath)
 
 
 def menu_func_import(self, context):
