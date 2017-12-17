@@ -9,6 +9,36 @@ import utility
 
 
 def to_bstruct(self, path, name):
+    mtrl = bpy.data.materials.new('material')
+    mtrl.use_transparency = True
+    mtrl.alpha = 0
+
+    tex = bpy.data.textures.new('texture', 'IMAGE')
+
+    # Textures are either in the tex dir, or in the common dir
+    try:
+        tex.image = bpy.data.images.load(
+                os.path.join(path, 'tex', self.texture))
+
+    except:
+        path = utility.get_common_path(path)
+
+        tex.image = bpy.data.images.load(
+                os.path.join(path, 'tex', self.texture))
+
+    mtex = mtrl.texture_slots.add()
+    mtex.texture_coords = 'UV'
+    mtex.texture = tex
+    mtex.use_map_alpha = True
+    mtex.alpha_factor = 1
+
+    return mtrl
+
+
+struct_gb.GBMaterial.to_bstruct = to_bstruct
+
+
+def to_bstruct(self):
     bm = bmesh.new()
 
     # Vertices
@@ -61,8 +91,11 @@ def scene_import(context, path):
         scene = context.scene
 
         for i, mesh in enumerate(gb.meshes):
-            obj = bpy.data.objects.new(name + '_' + str(i),
-                    mesh.to_bstruct(path, name))
+            obj = bpy.data.objects.new(
+                    name + '_' + str(i), mesh.to_bstruct())
+
+            obj.data.materials.append(
+                    mesh.material.to_bstruct(path, name))
 
             obj.matrix_world = rot_x_pos90 * obj.matrix_world
 
