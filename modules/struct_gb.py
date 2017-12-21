@@ -8,6 +8,23 @@ from struct import unpack
 from utility import ValidationError
 from utility import VersionError
 
+
+class GBArmature(object):
+    __slots__ = [
+        'bones',
+    ]
+
+    def parse(self, stream, b_count):
+        self.bones = []
+        for _ in range(b_count):
+            self.bones.append(GBBone().parse(stream))
+
+        return self
+
+    def write(self, stream):
+        raise NotImplementedError
+
+
 class GBBone(object):
     __slots__ = [
         'matrix',
@@ -80,7 +97,7 @@ class GBMaterial(object):
         'light_s',
         'opacity',
     ]
-    
+
     _OPTION_TWOSIDED      = 1
     _OPTION_MAP_OPACITY   = 2
     _OPTION_MAP_ALPHA_RGB = 4
@@ -284,7 +301,7 @@ class GBFile(object):
     __slots__ = [
         'bounding_box_min',
         'bounding_box_max',
-        'bones',
+        'armature',
         'meshes',
         'animations',
         'transformations',
@@ -345,10 +362,9 @@ class GBFile(object):
         # Data
 
         if bone & GBFile._MODEL_BONE:
-            self.bones = []
-
-            for _ in range(bone_count):
-                self.bones.append(GBBone().parse(stream))
+            self.armature = GBArmature().parse(stream, bone_count)
+        else:
+            self.armature = None
 
         materials = []
         for _ in range(material_count):

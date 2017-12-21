@@ -8,7 +8,11 @@ import struct_gb
 import utility
 
 
-def mtrl_to_bstruct(self, path, name):
+def armature_to_bstruct(self):
+    raise NotImplementedError
+
+
+def material_to_bstruct(self, path, name):
     mtrl = bpy.data.materials.new('material')
     mtrl.use_transparency = True
     mtrl.alpha = 0
@@ -72,7 +76,8 @@ def mesh_to_bstruct(self):
     return mesh
 
 
-struct_gb.GBMaterial.to_bstruct = mtrl_to_bstruct
+struct_gb.GBArmature.to_bstruct = armature_to_bstruct
+struct_gb.GBMaterial.to_bstruct = material_to_bstruct
 struct_gb.GBMesh.to_bstruct     = mesh_to_bstruct
 
 def scene_import(context, path):
