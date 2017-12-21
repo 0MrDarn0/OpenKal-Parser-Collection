@@ -8,7 +8,7 @@ import struct_gb
 import utility
 
 
-def to_bstruct(self, path, name):
+def mtrl_to_bstruct(self, path, name):
     mtrl = bpy.data.materials.new('material')
     mtrl.use_transparency = True
     mtrl.alpha = 0
@@ -35,10 +35,7 @@ def to_bstruct(self, path, name):
     return mtrl
 
 
-struct_gb.GBMaterial.to_bstruct = to_bstruct
-
-
-def to_bstruct(self):
+def mesh_to_bstruct(self):
     bm = bmesh.new()
 
     # Vertices
@@ -75,8 +72,8 @@ def to_bstruct(self):
     return mesh
 
 
-struct_gb.GBMesh.to_bstruct = to_bstruct
-
+struct_gb.GBMaterial.to_bstruct = mtrl_to_bstruct
+struct_gb.GBMesh.to_bstruct     = mesh_to_bstruct
 
 def scene_import(context, path):
     rot_x_pos90 = mathutils.Matrix.Rotation(math.pi / 2.0, 4, 'X')
