@@ -122,7 +122,7 @@ def read_d3dx_matrix4(stream):
             struct.unpack('<16f', stream.read(16 * 4)))).reshape((4, 4))
 
 def read_range_pre(stream):
-    return stream.read(struct.unpack('<I', stream.read(4)))
+    return stream.read(struct.unpack('<I', stream.read(4))[0])
 
 def read_range_zero(stream):
     result = b''
