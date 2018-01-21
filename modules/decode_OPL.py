@@ -17,7 +17,7 @@ class OPLNode(object):
     ]
 
     def parse(self, stream):
-        self.path     = utility.read_string_pre(stream).replace('\\', '/')
+        self.path     = utility.read_string_pre(stream)
         self.position = utility.read_d3dx_vector3(stream)
         self.rotation = utility.read_d3dx_vector4(stream)
         self.scale    = utility.read_d3dx_vector3(stream)
@@ -53,7 +53,6 @@ class OPLFile(object):
             raise ValidationError('Too many bytes in OPL structure')
 
         return self
-
 
     def write(self, stream):
         raise NotImplementedError
