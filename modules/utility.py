@@ -105,6 +105,9 @@ def read_d3d_color(stream):
         a / 255,
     )
 
+def read_d3dx_color(stream):
+    return struct.unpack('<4f', stream.read(16))
+
 def read_d3dx_vector2(stream):
     return numpy.array(list(
             struct.unpack('<2f', stream.read(2 * 4))))

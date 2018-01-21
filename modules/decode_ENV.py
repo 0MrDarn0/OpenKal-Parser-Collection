@@ -1,69 +1,101 @@
 #!/usr/bin/python3.5
 
 import sys
-import struct
-import json
+import utility
 
-# Reads a ENV7 and writes its sub-components to disk
-def main(path):
-    with open(path, 'rb') as stream:
-        # Parse
-        crc, map_number, \
-        _, _, _,         \
-        _, _, _,         \
-        version = struct.unpack('<9I', stream.read(9 * 4))
+from struct import unpack
+from utility import ValidationError
+from utility import VersionError
+
+
+class ENVLight(object):
+    __slots__ = [
+        'r',
+        'g',
+        'b',
+        'a',
+    ]
+
+    def parse(self, stream):
+        _ = unpack('<I', stream.read(4))[0] # Boolean
+
+        self.r, \
+        self.g, \
+        self.b, \
+        self.a = utility.read_d3dx_color(stream)
+        return self
+
+    def write(self, stream):
+        raise NotImplementedError
+
+
+class ENVLayer(object):
+    __slots__ = [
+        'scale_u',
+        'scale_v',
+        'path',
+    ]
+
+    def parse(self, stream):
+        self.scale_u = unpack('<I', stream.read(4))[0]
+        self.scale_v = unpack('<I', stream.read(4))[0]
+        self.path    = utility.read_string_pre(stream)
+        return self
+
+    def write(self, stream):
+        raise NotImplementedError
+
+
+class ENVFile(object):
+    __slots__ = [
+        'decals',
+        'lights',
+        'layers',
+    ]
+
+    def parse(self, stream):
+        _, _, _, _, \
+        _, _, _, _, \
+        version = unpack('<9I', stream.read(9 * 4))
 
         if version != 7:
-            sys.exit('Only ENV version 7 is supported; is: ' + str(version))
+            raise VersionError('ENV version %d is unsupported' % version)
 
-        decals = [None] * struct.unpack('<I', stream.read(4))[0]
-        for i in range(len(decals)):
-            decals[i] = {
-                'index' : struct.unpack('<I', stream.read(4))[0],
-                'path' : get_var_string(stream).replace('\\', '/')
-            }
+        self.decals = [None] * unpack('<I', stream.read(4))[0]
+        self.lights = []
+        self.layers = []
 
-        lights = [None] * 24
-        for i in range(24):
-            k, r, g, b, a = struct.unpack('<I4f', stream.read(20))
+        for _ in range(len(self.decals)):
+            i = unpack('<I', stream.read(4))[0]
 
-            lights[i] = {
-                'key' : bool(k),
-                'r'   : round(r, 3),
-                'g'   : round(g, 3),
-                'b'   : round(b, 3),
-                'a'   : round(a, 3)
-            }
+            # The prepended index usually corresponds to the actual index
+            self.decals[i] = utility.read_string_pre(stream)
 
-        layers = [None] * struct.unpack('<I', stream.read(4))[0]
-        for i in range(len(layers)):
-            layers[i] = {
-                'scale_u' : struct.unpack('<I', stream.read(4))[0],
-                'scale_v' : struct.unpack('<I', stream.read(4))[0],
-                'path' : get_var_string(stream).replace('\\', '/')
-            }
+        for _ in range(24):
+            self.lights.append(ENVLight().parse(stream))
+
+        for _ in range(unpack('<I', stream.read(4))[0]):
+            self.layers.append(ENVLayer().parse(stream))
 
         # Verify
-        if len(stream.read(1)) != 0:
-            sys.exit('Unable to parse ENV, too many bytes')
+        if stream.read(1):
+            raise ValidationError('Too many bytes in ENV structure')
 
-        # Write
-        json_data = {
-            'decals' : decals,
-            'layers' : layers,
-            'lights' : lights
-        }
+        return self
 
-        with open(path + '.json', 'w') as output:
-            json.dump(json_data, output,\
-                    sort_keys=True, indent=4, separators=(',', ': '))
+    def write(self, stream):
+        raise NotImplementedError
 
-def get_var_string(stream):
-    n = struct.unpack('<I', stream.read(4))[0]
 
-    return struct.unpack('%ds' % n,
-            stream.read(n))[0].decode("utf-8")
+def main(path):
+    with open(path, 'rb') as stream:
+        try:
+            env = ENVFile().parse(stream)
 
-# Usage: python decode_ENV.py path
+        except (VersionError, ValidationError) as e:
+            print(str(e) + ' in ' + path)
+
+
+# Usage: python struct_env.py path; performs a parse check, nothing else
 if __name__ == '__main__':
     main(sys.argv[1])
