@@ -1,6 +1,7 @@
-import numpy
-import struct
 import os
+import numpy as np
+
+from struct import unpack
 
 _CRC32_TABLE = [
     0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3,
@@ -97,7 +98,7 @@ def get_common_path(path):
 
 
 def read_d3d_color(stream):
-    r, g, b, a = struct.unpack('<4B', stream.read(4))
+    r, g, b, a = unpack('<4B', stream.read(4))
     return (
         r / 255,
         g / 255,
@@ -106,26 +107,26 @@ def read_d3d_color(stream):
     )
 
 def read_d3dx_color(stream):
-    return struct.unpack('<4f', stream.read(16))
+    return unpack('<4f', stream.read(16))
 
 def read_d3dx_vector2(stream):
-    return numpy.array(list(
-            struct.unpack('<2f', stream.read(2 * 4))))
+    return np.array(list(
+            unpack('<2f', stream.read(2 * 4))))
 
 def read_d3dx_vector3(stream):
-    return numpy.array(list(
-            struct.unpack('<3f', stream.read(3 * 4))))
+    return np.array(list(
+            unpack('<3f', stream.read(3 * 4))))
 
 def read_d3dx_vector4(stream):
-    return numpy.array(list(
-            struct.unpack('<4f', stream.read(4 * 4))))
+    return np.array(list(
+            unpack('<4f', stream.read(4 * 4))))
 
 def read_d3dx_matrix4(stream):
-    return numpy.array(list(
-            struct.unpack('<16f', stream.read(16 * 4)))).reshape((4, 4))
+    return np.array(list(
+            unpack('<16f', stream.read(16 * 4)))).reshape((4, 4))
 
 def read_range_pre(stream):
-    return stream.read(struct.unpack('<I', stream.read(4))[0])
+    return stream.read(unpack('<I', stream.read(4))[0])
 
 def read_range_zero(stream):
     result = b''
