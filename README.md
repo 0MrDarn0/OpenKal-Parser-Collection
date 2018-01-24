@@ -1,10 +1,11 @@
 # OpenKal Parser Collection
-A collection of KalOnline data parsers written in Python.
+A collection of KalOnline data parsers and Blender addons written in Python.
 
 ## Requirements
-A Python 3.5 environment with pillow and numpy.
+The data parsers require a Python 3.5 environment with numpy.
+The Blender addons additionally require Blender 2.79.
 
-## Progress
+## Progress - Parsers
 - [ ] KSM
 - [x] KCM
 - [x] OPL
@@ -12,4 +13,11 @@ A Python 3.5 environment with pillow and numpy.
 - [ ] MAP
 - [X] DAT
 - [X] GTX
-- [X] GB, export not yet implemented
+- [X] GB
+
+## Progress - Blender Addons
+- [ ] KCM
+- [ ] OPL
+- [ ] ENV
+- [ ] MAP
+- [ ] GB
