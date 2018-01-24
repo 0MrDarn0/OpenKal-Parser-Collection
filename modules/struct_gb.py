@@ -317,7 +317,7 @@ class GBFile(object):
         mesh_count = unpack('<4B', stream.read(4))
 
         if version < 8 or version > 12:
-            raise VersionError('GB Version %d is unsupported' % version)
+            raise VersionError('GB version %d is unsupported' % version)
 
         if version >= 10:
             checksum = unpack('<I', stream.read(4))
@@ -398,7 +398,6 @@ class GBFile(object):
         for mesh in self.meshes:
             mesh.material = materials[mesh.material]
 
-
         # Verify
         if stream.read(1):
             raise ValidationError('Too many bytes in GB structure')
@@ -417,6 +416,7 @@ def main(path):
         except (VersionError, ValidationError) as e:
             print(str(e) + ' in ' + path)
 
-# Usage: python decode_GB.py path; performs a parse check, nothing else
+
+# Usage: python struct_gb.py path; performs a parse check, nothing else
 if __name__ == '__main__':
     main(sys.argv[1])
