@@ -1,35 +1,36 @@
 import bpy
 import bmesh
 import math
-import mathutils
 import os
 
 import struct_gb
 import utility
 
+from mathutils import Matrix, Vector
+
 
 def armature_to_bstruct(self, arm):
     bpy.ops.object.mode_set(mode='EDIT')
 
+    # Inverted permutation matrix
+    p = Matrix([
+        [ 0, 1, 0, 0],
+        [-1, 0, 0, 0],
+        [ 0, 0, 1, 0],
+        [ 0, 0, 0, 1],
+    ])
+
     for i, bone in enumerate(self.bones):
         edit = arm.edit_bones.new('bone_%03d' % i)
-        edit.use_connect = True
-
-        # Transformation matrix, 4x4 affine
-        matrix = mathutils.Matrix(bone.matrix).transposed()
-
-        vec1 = matrix.col[1].to_3d().normalized()
-        vec2 = matrix.col[2].to_3d().normalized()
-        vec3 = matrix.col[3].to_3d()
-
-        edit.head = vec3
-        edit.tail = vec3 + 0.01 * vec1
-        edit.align_roll(vec2)
-
-        edit.matrix = matrix.inverted()
 
         if bone.parent != 0xFF:
             edit.parent = arm.edit_bones['bone_%03d' % bone.parent]
+
+        # The Bone will be deleted otherwise
+        edit.head = Vector([0, 0, 0])
+        edit.tail = Vector([1, 0, 0])
+
+        edit.matrix = Matrix(bone.matrix).inverted() * p
 
     bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -105,7 +106,7 @@ struct_gb.GBMesh.to_bstruct     = mesh_to_bstruct
 
 def scene_import(context, path):
     # Fixes DirectX axes
-    rot_x_pos90 = mathutils.Matrix.Rotation(math.pi / 2.0, 4, 'X')
+    rot_x_pos90 = Matrix.Rotation(math.pi / 2.0, 4, 'X')
 
     with open(path, 'rb') as stream:
         gb = struct_gb.GBFile().parse(stream)

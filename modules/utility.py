@@ -122,8 +122,8 @@ def read_d3dx_vector4(stream):
             unpack('<4f', stream.read(4 * 4))))
 
 def read_d3dx_matrix4(stream):
-    return np.array(list(
-            unpack('<16f', stream.read(16 * 4)))).reshape((4, 4))
+    return np.frombuffer(stream.read(16 * 4),
+            np.float32).reshape((4, 4), order='F')
 
 def read_range_pre(stream):
     return stream.read(unpack('<I', stream.read(4))[0])
