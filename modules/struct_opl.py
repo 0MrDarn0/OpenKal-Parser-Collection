@@ -19,7 +19,7 @@ class OPLNode(object):
     def parse(self, stream):
         self.path     = utility.read_string_pre(stream)
         self.position = utility.read_d3dx_vector3(stream)
-        self.rotation = utility.read_d3dx_vector4(stream)
+        self.rotation = utility.read_d3dx_quaternion(stream)
         self.scale    = utility.read_d3dx_vector3(stream)
         return self
 

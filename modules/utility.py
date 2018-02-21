@@ -98,31 +98,24 @@ def get_common_path(path):
 
 
 def read_d3d_color(stream):
-    r, g, b, a = unpack('<4B', stream.read(4))
-    return (
-        r / 255,
-        g / 255,
-        b / 255,
-        a / 255,
-    )
+    return np.fromstring(stream.read(4), np.uint8) / 255
 
 def read_d3dx_color(stream):
-    return unpack('<4f', stream.read(16))
+    return np.fromstring(stream.read(4 * 4), np.float32)
 
 def read_d3dx_vector2(stream):
-    return np.array(list(
-            unpack('<2f', stream.read(2 * 4))))
+    return np.fromstring(stream.read(2 * 4), np.float32)
 
 def read_d3dx_vector3(stream):
-    return np.array(list(
-            unpack('<3f', stream.read(3 * 4))))
+    return np.fromstring(stream.read(3 * 4), np.float32)
 
-def read_d3dx_vector4(stream):
-    return np.array(list(
-            unpack('<4f', stream.read(4 * 4))))
+def read_d3dx_quaternion(stream):
+    # Reorders quaternion as [w, x, y, z]
+    return np.fromstring(stream.read(4 * 4), np.float32)[[3, 0, 1, 2]]
 
 def read_d3dx_matrix4(stream):
-    return np.frombuffer(stream.read(16 * 4),
+    # Transposes matrix
+    return np.fromstring(stream.read(16 * 4),
             np.float32).reshape((4, 4), order='F')
 
 def read_range_pre(stream):
@@ -133,7 +126,6 @@ def read_range_zero(stream):
 
     while True:
         char = stream.read(1)
-
         if char == b'\0':
             break
 
