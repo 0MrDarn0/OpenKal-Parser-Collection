@@ -2,11 +2,16 @@ import bpy
 import bmesh
 import math
 import os
-
-import struct_gb
 import utility
 
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Vector, Quaternion
+
+if 'struct_gb' in locals():
+    import importlib
+
+    importlib.reload(struct_gb)
+else:
+    import struct_gb
 
 
 def armature_to_bstruct(self, arm):
@@ -99,6 +104,65 @@ def mesh_to_bstruct(self):
     return mesh
 
 
+def to_matrix(self):
+    mat_rot = Quaternion(self.rotation).to_matrix().to_4x4()
+
+    mat_sca = Matrix([
+        [self.scale[0], 0, 0],
+        [0, self.scale[1], 0],
+        [0, 0, self.scale[2]],
+    ]).to_4x4()
+
+    return Matrix.Translation(self.position) * mat_rot * mat_sca
+
+
+struct_gb.GBTransformation.to_matrix = to_matrix
+
+
+def apply_animation(self, pose_matrices, obj):
+    bpy.ops.object.mode_set(mode='POSE')
+
+    p = Matrix([
+        [ 0, 1, 0, 0],
+        [-1, 0, 0, 0],
+        [ 0, 0, 1, 0],
+        [ 0, 0, 0, 1],
+    ])
+
+    zipped = zip(
+        self.keyframes,
+        self.keyframe_frames,
+        self.keyframe_events
+    )
+
+    for i, (keyframe, frame, event) in enumerate(zipped):
+        frame = (frame / 1000) * 24
+
+        for j, m in enumerate(keyframe):
+            pose = obj.pose.bones['bone_%03d' % j]
+
+            matrix = pose_matrices[m]
+
+            for parent in pose.parent_recursive:
+                matrix = pose_matrices[keyframe[int(parent.name[-3:])]] * matrix
+
+            pose.matrix = matrix * p
+
+            bpy.context.scene.update()
+
+            pose.keyframe_insert('location', frame=frame)
+            pose.keyframe_insert('rotation_quaternion', frame=frame)
+            pose.keyframe_insert('scale', frame=frame)
+
+
+    bpy.context.scene.frame_start = self.keyframe_frames[0] / 1000 * 24
+    bpy.context.scene.frame_end = self.keyframe_frames[-1] / 1000 * 24
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+
+struct_gb.GBAnimation.apply_animation = apply_animation
+
 struct_gb.GBArmature.to_bstruct = armature_to_bstruct
 struct_gb.GBMaterial.to_bstruct = material_to_bstruct
 struct_gb.GBMesh.to_bstruct     = mesh_to_bstruct
@@ -140,5 +204,13 @@ def scene_import(context, path):
             scene.objects.active = obj
 
             gb.armature.to_bstruct(arm)
+
+        # TODO Create separate animation action
+        if gb.animations:
+            pose_matrices = [m.to_matrix() for m in gb.transformations]
+
+            gb.animations[0].apply_animation(
+                    pose_matrices, bpy.context.object)
+
 
     return {'FINISHED'}

@@ -43,25 +43,35 @@ class GBBone(object):
 class GBAnimation(object):
     __slots__ = [
         'option',
-        'keyframe_times',
-        'keyframe_indexes',
+        'keyframes',
+        'keyframe_frames',
+        'keyframe_events'
     ]
+
+    def parse_descriptor(self, descriptor):
+        self.option = utility.read_string_zero(descriptor, self.option)
+        
+        for i, index in enumerate(self.keyframe_events):
+            self.keyframe_events[i] = (
+                    utility.read_string_zero(descriptor, index))
+
+    def write_descriptor(self, descriptor):
+        raise NotImplementedError
 
     def parse(self, stream, b_count):
         self.option, k_count = unpack('<IH', stream.read(6))
 
-        self.keyframe_times = []
-        self.keyframe_indexes = []
+        self.keyframes = []
+        self.keyframe_frames = []
+        self.keyframe_events = []
 
         for _ in range(k_count):
-            self.keyframe_times.append({
-                'time'   : unpack('<H', stream.read(2))[0],
-                'option' : unpack('<I', stream.read(4))[0],
-            })
+            self.keyframe_frames.append(unpack('<H', stream.read(2))[0])
+            self.keyframe_events.append(unpack('<I', stream.read(4))[0])
 
         for _ in range(k_count):
-            for _ in range(b_count):
-                self.keyframe_indexes.append(unpack('<H', stream.read(2))[0])
+            self.keyframes.append(list(
+                unpack('<%dH' % b_count, stream.read(2 * b_count))))
 
         return self
 
@@ -387,6 +397,9 @@ class GBFile(object):
 
         # Parse descriptor
         descriptor = io.BytesIO(stream.read(descriptor_size))
+
+        for anim in self.animations:
+            anim.parse_descriptor(descriptor)
 
         for mesh in self.meshes:
             mesh.parse_descriptor(descriptor)
