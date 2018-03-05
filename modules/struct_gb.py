@@ -50,7 +50,7 @@ class GBAnimation(object):
 
     def parse_descriptor(self, descriptor):
         self.option = utility.read_string_zero(descriptor, self.option)
-        
+
         for i, index in enumerate(self.keyframe_events):
             self.keyframe_events[i] = (
                     utility.read_string_zero(descriptor, index))
@@ -201,16 +201,17 @@ class GBMesh(object):
     def _parse_vertex(self, stream, v_type):
         vertex = {'v' : utility.read_d3dx_vector3(stream)}
 
-        # See: Direct3D 9 - Indexed Vertex Blending
-        if v_type >= 1 and v_type <= 4:
-            vertex['indexes'] = unpack('<I', stream.read(4))
-
+        # Bone weights
         if v_type == 2:
-            vertex['blend'] = list(unpack('<1f', stream.read(4)))
+            vertex['weights'] = list(unpack('<1f', stream.read(4)))
         elif v_type == 3:
-            vertex['blend'] = list(unpack('<2f', stream.read(8)))
+            vertex['weights'] = list(unpack('<2f', stream.read(8)))
         elif v_type == 4:
-            vertex['blend'] = list(unpack('<3f', stream.read(12)))
+            vertex['weights'] = list(unpack('<3f', stream.read(12)))
+
+        # Bone indexes which influence this vertex
+        if v_type >= 1 and v_type <= 4:
+            vertex['indexes'] = list(unpack('<4B', stream.read(4)))
 
         # Texture coordinate(s) and vertex normal
         vertex['vn'] = utility.read_d3dx_vector3(stream)

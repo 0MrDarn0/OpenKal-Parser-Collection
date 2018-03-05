@@ -40,6 +40,9 @@ def armature_to_bstruct(self, arm):
     bpy.ops.object.mode_set(mode='OBJECT')
 
 
+struct_gb.GBArmature.to_bstruct = armature_to_bstruct
+
+
 def material_to_bstruct(self, path, name):
     mtrl = bpy.data.materials.new('material')
     mtrl.use_transparency = True
@@ -67,7 +70,10 @@ def material_to_bstruct(self, path, name):
     return mtrl
 
 
-def mesh_to_bstruct(self):
+struct_gb.GBMaterial.to_bstruct = material_to_bstruct
+
+
+def create_mesh(self):
     bm = bmesh.new()
 
     # Vertices
@@ -102,6 +108,31 @@ def mesh_to_bstruct(self):
     bm.free()
 
     return mesh
+
+
+struct_gb.GBMesh.create_mesh = create_mesh
+
+
+def insert_groups(self, obj):
+    groups = []
+    for index in self.bone_indexes:
+        groups.append(obj.vertex_groups.new('bone_%03d' % index))
+
+    for i, v in enumerate(self.vertices):
+        if 'weights' in v:
+            weights = [w for w in v['weights'] if w != 0]
+
+            if sum(weights) != 1:
+                weights.append(1 - sum(weights))
+
+            for index, weight in zip(v['indexes'], weights):
+                groups[index].add([i], weight, 'ADD')
+        else:
+            for group in groups:
+                group.add([i], 1.0, 'ADD')
+
+
+struct_gb.GBMesh.insert_groups = insert_groups
 
 
 def to_matrix(self):
@@ -163,10 +194,6 @@ def apply_animation(self, pose_matrices, obj):
 
 struct_gb.GBAnimation.apply_animation = apply_animation
 
-struct_gb.GBArmature.to_bstruct = armature_to_bstruct
-struct_gb.GBMaterial.to_bstruct = material_to_bstruct
-struct_gb.GBMesh.to_bstruct     = mesh_to_bstruct
-
 
 def scene_import(context, path):
     # Fixes DirectX axes
@@ -181,13 +208,17 @@ def scene_import(context, path):
 
         scene = context.scene
 
-        # Load meshes plus materials
+        # Load meshes
         for i, mesh in enumerate(gb.meshes):
             obj = bpy.data.objects.new(
-                    name + '_' + str(i), mesh.to_bstruct())
+                    name + '_' + str(i), mesh.create_mesh())
 
-            obj.data.materials.append(
-                    mesh.material.to_bstruct(path, name))
+            mesh.insert_groups(obj)
+
+            # TODO make materials optional, add user defined path
+
+            # obj.data.materials.append(
+            #         mesh.material.to_bstruct(path, name))
 
             obj.matrix_world = rot_x_pos90 * obj.matrix_world
 
