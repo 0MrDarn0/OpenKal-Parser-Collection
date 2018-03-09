@@ -77,14 +77,14 @@ def create_mesh(self):
     bm = bmesh.new()
 
     # Vertices
-    for v in self.vertices:
+    for v in self.verts:
         bm.verts.new(v['v'])
 
     bm.verts.index_update()
     bm.verts.ensure_lookup_table()
 
     # Faces
-    for f in self.face_indexes:
+    for f in self.faces:
         bm.faces.new(bm.verts[i] for i in f)
 
     bm.faces.index_update()
@@ -95,11 +95,11 @@ def create_mesh(self):
 
     for i, f in enumerate(bm.faces):
         for j, l in enumerate(f.loops):
-            v_index = self.face_indexes[i][j]
+            v_index = self.faces[i][j]
 
             uv = l[uv_layer].uv
-            uv[0] = self.vertices[v_index]['t0'][0]
-            uv[1] = self.vertices[v_index]['t0'][1]
+            uv[0] = +self.verts[v_index]['t0'][0]
+            uv[1] = -self.verts[v_index]['t0'][1]
 
     # Create Blender mesh
     mesh = bpy.data.meshes.new('mesh')
@@ -115,10 +115,10 @@ struct_gb.GBMesh.create_mesh = create_mesh
 
 def insert_groups(self, obj):
     groups = []
-    for index in self.bone_indexes:
+    for index in self.bones:
         groups.append(obj.vertex_groups.new('bone_%03d' % index))
 
-    for i, v in enumerate(self.vertices):
+    for i, v in enumerate(self.verts):
         if 'weights' in v:
             weights = [w for w in v['weights'] if w != 0]
 

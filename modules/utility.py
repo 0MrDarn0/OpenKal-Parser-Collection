@@ -98,24 +98,24 @@ def get_common_path(path):
 
 
 def read_d3d_color(stream):
-    return np.fromstring(stream.read(4), np.uint8) / 255
+    return np.frombuffer(stream.read(4), np.uint8) / 255
 
 def read_d3dx_color(stream):
-    return np.fromstring(stream.read(4 * 4), np.float32)
+    return np.frombuffer(stream.read(4 * 4), np.float32)
 
 def read_d3dx_vector2(stream):
-    return np.fromstring(stream.read(2 * 4), np.float32)
+    return np.frombuffer(stream.read(2 * 4), np.float32)
 
 def read_d3dx_vector3(stream):
-    return np.fromstring(stream.read(3 * 4), np.float32)
+    return np.frombuffer(stream.read(3 * 4), np.float32)
 
 def read_d3dx_quaternion(stream):
     # Reorders quaternion as [w, x, y, z]
-    return np.fromstring(stream.read(4 * 4), np.float32)[[3, 0, 1, 2]]
+    return np.frombuffer(stream.read(4 * 4), np.float32)[[3, 0, 1, 2]]
 
 def read_d3dx_matrix4(stream):
     # Transposes matrix
-    return np.fromstring(stream.read(16 * 4),
+    return np.frombuffer(stream.read(16 * 4),
             np.float32).reshape((4, 4), order='F')
 
 def read_range_pre(stream):

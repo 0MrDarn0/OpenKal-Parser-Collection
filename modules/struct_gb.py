@@ -3,6 +3,7 @@
 import io
 import sys
 import utility
+import numpy as np
 
 from struct import unpack
 from utility import ValidationError
@@ -28,7 +29,7 @@ class GBArmature(object):
 class GBBone(object):
     __slots__ = [
         'matrix',
-        'parent',
+        'parent',  #  no parent: 0xFF
     ]
 
     def parse(self, stream):
@@ -70,8 +71,8 @@ class GBAnimation(object):
             self.keyframe_events.append(unpack('<I', stream.read(4))[0])
 
         for _ in range(k_count):
-            self.keyframes.append(list(
-                unpack('<%dH' % b_count, stream.read(2 * b_count))))
+            self.keyframes.append(
+                    np.frombuffer(stream.read(2 * b_count), np.uint16))
 
         return self
 
@@ -120,9 +121,9 @@ class GBMaterial(object):
         self.texture = utility.read_string_zero(descriptor, self.texture)
 
         descriptor.seek(self.light_a)
-        self.light_a = utility.read_d3d_color(descriptor) # ambient
-        self.light_d = utility.read_d3d_color(descriptor) # diffuse
-        self.light_s = utility.read_d3d_color(descriptor) # specular
+        self.light_a = utility.read_d3d_color(descriptor)  # ambient
+        self.light_d = utility.read_d3d_color(descriptor)  # diffuse
+        self.light_s = utility.read_d3d_color(descriptor)  # specular
         self.opacity = unpack('<f', descriptor.read(4))[0]
 
         self.texture_off = utility.read_d3dx_vector2(descriptor)
@@ -158,9 +159,9 @@ class GBMesh(object):
     __slots__ = [
         'name',
         'material',
-        'vertices',
-        'bone_indexes',
-        'face_indexes',
+        'verts',
+        'faces',
+        'bones',
     ]
 
     # Face types
@@ -202,23 +203,17 @@ class GBMesh(object):
         vertex = {'v' : utility.read_d3dx_vector3(stream)}
 
         # Bone weights
-        if v_type == 2:
-            vertex['weights'] = list(unpack('<1f', stream.read(4)))
-        elif v_type == 3:
-            vertex['weights'] = list(unpack('<2f', stream.read(8)))
-        elif v_type == 4:
-            vertex['weights'] = list(unpack('<3f', stream.read(12)))
+        if 2 <= v_type <= 4:
+            vertex['weights'] = np.frombuffer(
+                    stream.read(4 * v_type - 4), np.float32)
 
         # Bone indexes which influence this vertex
-        if v_type >= 1 and v_type <= 4:
+        if 1 <= v_type <= 4:
             vertex['indexes'] = list(unpack('<4B', stream.read(4)))
 
         # Texture coordinate(s) and vertex normal
         vertex['vn'] = utility.read_d3dx_vector3(stream)
         vertex['t0'] = utility.read_d3dx_vector2(stream)
-
-        # Flip v-coordinate
-        vertex['t0'][1] = -vertex['t0'][1]
 
         if v_type >= 5:
             vertex['t1'] = utility.read_d3dx_vector2(stream)
@@ -250,25 +245,25 @@ class GBMesh(object):
         if gb_version < 11 and v_type > 0:
             v_type = v_type - 1
 
-        self.vertices = []
-        self.bone_indexes = []
-        self.face_indexes = []
+        self.verts = []
+        self.faces = []
+        self.bones = []
 
         for _ in range(b_count):
-            self.bone_indexes.append(unpack('<B', stream.read(1))[0])
+            self.bones.append(unpack('<B', stream.read(1))[0])
 
         for _ in range(v_count):
-            self.vertices.append(self._parse_vertex(stream, v_type))
+            self.verts.append(self._parse_vertex(stream, v_type))
 
         for _ in range(f_count):
-            self.face_indexes.append(unpack('<H', stream.read(2))[0])
+            self.faces.append(unpack('<H', stream.read(2))[0])
 
-        # _FT_STRIP and _FT_END must be unstripped, correction is optional
+        # _FT_STRIP and _FT_END must be unstripped
         if f_type:
-            self.face_indexes = self._unstrip(self.face_indexes)
-            self.face_indexes = self._correct(self.face_indexes)
+            self.faces = self._unstrip(self.faces)
+            self.faces = self._correct(self.faces)
         else:
-            self.face_indexes = self._correct(self.face_indexes)
+            self.faces = self._correct(self.faces)
 
         return self
 
@@ -280,26 +275,20 @@ class GBCollisionMesh(object):
     __slots__ = [
         'minimum',
         'maximum',
-        'vertices',
-        'face_indexes',
+        'verts',
+        'faces',
     ]
 
     def parse(self, stream):
-        v_count, \
-        f_count = unpack('<HH', stream.read(4))
+        v_count, f_count = unpack('<HH', stream.read(4))
 
         self.minimum = utility.read_d3dx_vector3(stream)
         self.maximum = utility.read_d3dx_vector3(stream)
 
-        self.vertices = []
-        for _ in range(v_count):
-            self.vertices.append(list(unpack('<3H', stream.read(6))))
+        self.verts = np.frombuffer(stream.read(6 * v_count), (np.uint16, 3))
+        self.faces = np.frombuffer(stream.read(6 * f_count), (np.uint16, 3))
 
-        self.face_indexes = []
-        for _ in range(f_count):
-            self.face_indexes.append(list(unpack('<3H', stream.read(6))))
-
-        # Discard OctTree
+        # TODO parse OctTree
         stream.read((f_count - 1) * 12)
 
         return self
