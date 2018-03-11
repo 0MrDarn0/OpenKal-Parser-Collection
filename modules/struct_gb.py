@@ -271,25 +271,71 @@ class GBMesh(object):
         raise NotImplementedError
 
 
-class GBCollisionMesh(object):
+class GBCollision(object):
     __slots__ = [
-        'minimum',
-        'maximum',
+        'bounding_box_min',
+        'bounding_box_max',
         'verts',
         'faces',
+        'nodes',
     ]
 
-    def parse(self, stream):
+    def parse(self, stream, gb_version):
         v_count, f_count = unpack('<HH', stream.read(4))
 
-        self.minimum = utility.read_d3dx_vector3(stream)
-        self.maximum = utility.read_d3dx_vector3(stream)
+        if gb_version < 11:
+            self.bounding_box_min = utility.read_d3dx_vector3(stream)
+            self.bounding_box_max = utility.read_d3dx_vector3(stream)
+        else:
+            stream.read(24)
 
         self.verts = np.frombuffer(stream.read(6 * v_count), (np.uint16, 3))
         self.faces = np.frombuffer(stream.read(6 * f_count), (np.uint16, 3))
 
-        # TODO parse OctTree
-        stream.read((f_count - 1) * 12)
+        self.nodes = []
+        for _ in range(f_count - 1):
+            self.nodes.append(GBCollisionNode().parse(stream))
+
+        return self
+
+    def write(self, stream, gb_version):
+        raise NotImplementedError
+
+
+class GBCollisionNode(object):
+    __slots__ = [
+        'flags',
+        'min',
+        'max',
+        'child_l',
+        'child_r',
+    ]
+
+    L_LEAF   = 0x1
+    R_LEAF   = 0x2
+    X_MIN    = 0x4
+    X_MAX    = 0x8
+    Y_MIN    = 0x10
+    Y_MAX    = 0x20
+    Z_MIN    = 0x40
+    Z_MAX    = 0x80
+    L_HIDDEN = 0x100
+    R_HIDDEN = 0x200
+    L_CAMERA = 0x400
+    R_CAMERA = 0x800
+    L_NOPICK = 0x1000
+    R_NOPICK = 0x2000
+    L_FLOOR  = 0x4000
+    R_FLOOR  = 0x8000
+
+    def parse(self, stream):
+        self.flags = unpack('<H', stream.read(2))
+
+        self.min = list(unpack('<3B', stream.read(3)))
+        self.max = list(unpack('<3B', stream.read(3)))
+
+        self.child_l, \
+        self.child_r = unpack('<HH', stream.read(4))
 
         return self
 
@@ -305,7 +351,7 @@ class GBFile(object):
         'meshes',
         'animations',
         'transformations',
-        'collision_mesh',
+        'collision',
     ]
 
     _MODEL_BONE = 1
@@ -355,6 +401,9 @@ class GBFile(object):
         if version >= 11:
             self.bounding_box_min = utility.read_d3dx_vector3(stream)
             self.bounding_box_max = utility.read_d3dx_vector3(stream)
+        else:
+            self.bounding_box_min = None
+            self.bounding_box_max = None
 
         if version >= 9:
             stream.read(16)
@@ -374,7 +423,7 @@ class GBFile(object):
         for _ in range(mesh_count):
             self.meshes.append(GBMesh().parse(stream, version))
 
-        self.animations =  []
+        self.animations = []
         for i in range(animation_count):
             self.animations.append(GBAnimation().parse(stream, bone_count))
 
@@ -383,7 +432,13 @@ class GBFile(object):
             self.transformations.append(GBTransformation().parse(stream))
 
         if cls_size:
-            self.collision_mesh = GBCollisionMesh().parse(stream)
+            self.collision = GBCollision().parse(stream, version)
+
+            if version < 11:
+                self.bounding_box_min = self.collision.bounding_box_min
+                self.bounding_box_max = self.collision.bounding_box_max
+        else:
+            self.collision = None
 
         # Parse descriptor
         descriptor = io.BytesIO(stream.read(descriptor_size))
