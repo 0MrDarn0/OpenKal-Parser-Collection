@@ -6,7 +6,7 @@ The data parsers require a Python 3.5 environment with numpy.
 The Blender addons additionally require Blender 2.79.
 
 ## Progress - Parsers
-- [ ] KSM
+- [x] KSM
 - [x] KCM
 - [x] OPL
 - [x] ENV
