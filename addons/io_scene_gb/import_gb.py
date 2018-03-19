@@ -113,6 +113,38 @@ def create_mesh(self):
 struct_gb.GBMesh.create_mesh = create_mesh
 
 
+def create_collision_mesh(self):
+    bm = bmesh.new()
+
+    # Vertices
+    for v in self.scale * self.verts + self.bounding_box_min:
+        bm.verts.new(v)
+
+    bm.verts.index_update()
+    bm.verts.ensure_lookup_table()
+
+    # Faces, ignore duplicates
+    seen = set()
+    for f in self.faces:
+        s = frozenset(f)
+        if s not in seen and not seen.add(s):
+            bm.faces.new(bm.verts[i // 3] for i in f)
+
+    bm.faces.index_update()
+    bm.faces.ensure_lookup_table()
+
+    # Create Blender mesh
+    mesh = bpy.data.meshes.new('mesh')
+
+    bm.to_mesh(mesh)
+    bm.free()
+
+    return mesh
+
+
+struct_gb.GBCollision.create_mesh = create_collision_mesh
+
+
 def insert_groups(self, obj):
     groups = []
     for index in self.bones:
@@ -242,6 +274,14 @@ def scene_import(context, path):
 
             gb.animations[0].apply_animation(
                     pose_matrices, bpy.context.object)
+
+        if gb.collision:
+            obj = bpy.data.objects.new(
+                    name + '_collision', gb.collision.create_mesh())
+
+            obj.matrix_world = rot_x_pos90 * obj.matrix_world
+
+            scene.objects.link(obj)
 
 
     return {'FINISHED'}

@@ -180,6 +180,8 @@ class GBMesh(object):
 
     def _correct(self, indexes):
         result = []
+
+        # Example: [0,1,2,3,4,5] -> [(0,1,2),(3,4,5)]
         for a, b, c in zip(*[iter(indexes)] * 3):
             if a == b or a == c or b == c:
                 continue
@@ -189,7 +191,7 @@ class GBMesh(object):
         return result
 
     def _unstrip(self, indexes):
-        """Converts an index strip to a index list."""
+        """Converts an index strip to an index list."""
         result = []
         for i in range(len(indexes) - 2):
             if i & 1:
@@ -300,6 +302,10 @@ class GBCollision(object):
 
     def write(self, stream, gb_version):
         raise NotImplementedError
+
+    @property
+    def scale(self):
+        return (self.bounding_box_max - self.bounding_box_min) / 0xFFFF
 
 
 class GBCollisionNode(object):
@@ -434,9 +440,9 @@ class GBFile(object):
         if cls_size:
             self.collision = GBCollision().parse(stream, version)
 
-            if version < 11:
-                self.bounding_box_min = self.collision.bounding_box_min
-                self.bounding_box_max = self.collision.bounding_box_max
+            if version >= 11:
+                self.collision.bounding_box_min = self.bounding_box_min
+                self.collision.bounding_box_max = self.bounding_box_max
         else:
             self.collision = None
 
