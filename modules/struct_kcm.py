@@ -47,19 +47,28 @@ class KCMFile(object):
         self.alpha_ids = self.alpha_ids[:alpha_count]
         self.decal_ids = self.decal_ids[:decal_count]
 
-        self.alpha_maps = []
-        for _ in range(alpha_count):
+        # Base map
+        self.alpha_maps = [None]
+        for _ in range(alpha_count - 1):
             self.alpha_maps.append(
                     np.frombuffer(stream.read(KCMFile._SIZE_1 ** 2), np.uint8))
+
+            self.alpha_maps[-1].shape = (KCMFile._SIZE_1, KCMFile._SIZE_1)
 
         self.height_map = np.frombuffer(
                 stream.read(2 * KCMFile._SIZE_2 ** 2), np.uint16)
 
+        self.height_map.shape = (KCMFile._SIZE_2, KCMFile._SIZE_2)
+
         self.color_map = np.frombuffer(
                 stream.read(3 * KCMFile._SIZE_1 ** 2), (np.uint8, 3))
 
+        self.color_map.shape = (KCMFile._SIZE_1, KCMFile._SIZE_1, 3)
+
         self.decal_map = np.frombuffer(
                 stream.read(KCMFile._SIZE_1 ** 2), np.uint8)
+
+        self.decal_map.shape = (KCMFile._SIZE_1, KCMFile._SIZE_1)
 
         # Verify
         if stream.read(1):
