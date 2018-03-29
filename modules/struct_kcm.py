@@ -1,5 +1,6 @@
 #!/usr/bin/python3.5
 
+import io
 import sys
 import utility
 import numpy as np
@@ -47,28 +48,24 @@ class KCMFile(object):
         self.alpha_ids = self.alpha_ids[:alpha_count]
         self.decal_ids = self.decal_ids[:decal_count]
 
-        # Base map
+        def next_array(shape, dtype, stream):
+            return np.ndarray(shape, dtype,
+                    stream.read(np.prod(shape) * np.dtype(dtype).itemsize))
+
+        # NumPy array parameters: alpha, height, color, decal
+        param_a = ((KCMFile._SIZE_1, KCMFile._SIZE_1), (np.uint8,  1), stream)
+        param_h = ((KCMFile._SIZE_2, KCMFile._SIZE_2), (np.uint16, 1), stream)
+        param_c = ((KCMFile._SIZE_1, KCMFile._SIZE_1), (np.uint8,  3), stream)
+        param_d = ((KCMFile._SIZE_1, KCMFile._SIZE_1), (np.uint8,  1), stream)
+
+        # Base map is None
         self.alpha_maps = [None]
         for _ in range(alpha_count - 1):
-            self.alpha_maps.append(
-                    np.frombuffer(stream.read(KCMFile._SIZE_1 ** 2), np.uint8))
+            self.alpha_maps.append(next_array(*param_a))
 
-            self.alpha_maps[-1].shape = (KCMFile._SIZE_1, KCMFile._SIZE_1)
-
-        self.height_map = np.frombuffer(
-                stream.read(2 * KCMFile._SIZE_2 ** 2), np.uint16)
-
-        self.height_map.shape = (KCMFile._SIZE_2, KCMFile._SIZE_2)
-
-        self.color_map = np.frombuffer(
-                stream.read(3 * KCMFile._SIZE_1 ** 2), (np.uint8, 3))
-
-        self.color_map.shape = (KCMFile._SIZE_1, KCMFile._SIZE_1, 3)
-
-        self.decal_map = np.frombuffer(
-                stream.read(KCMFile._SIZE_1 ** 2), np.uint8)
-
-        self.decal_map.shape = (KCMFile._SIZE_1, KCMFile._SIZE_1)
+        self.height_map = next_array(*param_h)
+        self.color_map = next_array(*param_c)
+        self.decal_map = next_array(*param_d)
 
         # Verify
         if stream.read(1):
