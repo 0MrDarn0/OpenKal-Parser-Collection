@@ -91,15 +91,16 @@ def create_mesh(self):
     bm.faces.ensure_lookup_table()
 
     # Texture coordinates
-    uv_layer = bm.loops.layers.uv.verify()
+    if getattr(self, 'material', False):
+        uv_layer = bm.loops.layers.uv.verify()
 
-    for i, f in enumerate(bm.faces):
-        for j, l in enumerate(f.loops):
-            v_index = self.faces[i][j]
+        for i, f in enumerate(bm.faces):
+            for j, l in enumerate(f.loops):
+                v_index = self.faces[i][j]
 
-            uv = l[uv_layer].uv
-            uv[0] = +self.verts[v_index]['t0'][0]
-            uv[1] = -self.verts[v_index]['t0'][1]
+                uv = l[uv_layer].uv
+                uv[0] = +self.verts[v_index]['t0'][0]
+                uv[1] = -self.verts[v_index]['t0'][1]
 
     # Create Blender mesh
     mesh = bpy.data.meshes.new('mesh')
@@ -111,38 +112,7 @@ def create_mesh(self):
 
 
 struct_gb.GBMesh.create_mesh = create_mesh
-
-
-def create_collision_mesh(self):
-    bm = bmesh.new()
-
-    # Vertices
-    for v in self.scale * self.verts + self.bounding_box_min:
-        bm.verts.new(v)
-
-    bm.verts.index_update()
-    bm.verts.ensure_lookup_table()
-
-    # Faces, ignore duplicates
-    seen = set()
-    for f in self.faces:
-        s = frozenset(f)
-        if s not in seen and not seen.add(s):
-            bm.faces.new(bm.verts[i // 3] for i in f)
-
-    bm.faces.index_update()
-    bm.faces.ensure_lookup_table()
-
-    # Create Blender mesh
-    mesh = bpy.data.meshes.new('mesh')
-
-    bm.to_mesh(mesh)
-    bm.free()
-
-    return mesh
-
-
-struct_gb.GBCollision.create_mesh = create_collision_mesh
+struct_gb.GBCollision.create_mesh = create_mesh
 
 
 def insert_groups(self, obj):
@@ -279,6 +249,7 @@ def scene_import(context, path):
             obj = bpy.data.objects.new(
                     name + '_collision', gb.collision.create_mesh())
 
+            obj.hide = True
             obj.matrix_world = rot_x_pos90 * obj.matrix_world
 
             scene.objects.link(obj)

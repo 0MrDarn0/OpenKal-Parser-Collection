@@ -282,13 +282,17 @@ class GBCollision(object):
         'nodes',
     ]
 
-    def parse(self, stream, gb_version):
+    def parse(self, stream, gb_version,
+            bounding_box_min=None,
+            bounding_box_max=None):
         v_count, f_count = unpack('<HH', stream.read(4))
 
         if gb_version < 11:
             self.bounding_box_min = utility.read_d3dx_vector3(stream)
             self.bounding_box_max = utility.read_d3dx_vector3(stream)
         else:
+            self.bounding_box_min = bounding_box_min
+            self.bounding_box_max = bounding_box_max
             stream.read(24)
 
         self.verts = np.frombuffer(stream.read(6 * v_count), (np.uint16, 3))
@@ -297,6 +301,23 @@ class GBCollision(object):
         self.nodes = []
         for _ in range(f_count - 1):
             self.nodes.append(GBCollisionNode().parse(stream))
+
+        # Create vertices
+        self.verts = [{'v' : v} for v in
+                self.scale * self.verts + self.bounding_box_min]
+
+        # Remove duplicates ignoring order, e.g. (0, 1, 2) = (2, 1, 0)
+        mask = []
+        seen = set()
+        for s in map(frozenset, self.faces):
+            if s in seen:
+                mask.append(False)
+            else:
+                mask.append(True)
+
+            seen.add(s)
+
+        self.faces = self.faces[np.array(mask)] // 3
 
         return self
 
@@ -438,11 +459,9 @@ class GBFile(object):
             self.transformations.append(GBTransformation().parse(stream))
 
         if cls_size:
-            self.collision = GBCollision().parse(stream, version)
-
-            if version >= 11:
-                self.collision.bounding_box_min = self.bounding_box_min
-                self.collision.bounding_box_max = self.bounding_box_max
+            self.collision = GBCollision().parse(stream, version,
+                    self.bounding_box_min,
+                    self.bounding_box_max)
         else:
             self.collision = None
 
