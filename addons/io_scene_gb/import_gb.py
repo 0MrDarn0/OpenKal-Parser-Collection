@@ -14,7 +14,8 @@ else:
     import struct_gb
 
 
-def armature_to_bstruct(self, arm):
+def add_armature(self, obj):
+    bpy.context.scene.objects.active = obj
     bpy.ops.object.mode_set(mode='EDIT')
 
     # Inverted permutation matrix
@@ -26,12 +27,12 @@ def armature_to_bstruct(self, arm):
     ])
 
     for i, bone in enumerate(self.bones):
-        edit = arm.edit_bones.new('bone_%03d' % i)
+        edit = obj.data.edit_bones.new('Bone_%03d' % i)
 
         if bone.parent != 0xFF:
-            edit.parent = arm.edit_bones['bone_%03d' % bone.parent]
+            edit.parent = obj.data.edit_bones['Bone_%03d' % bone.parent]
 
-        # The Bone will be deleted otherwise
+        # Prevents automatic deletion due to a length of zero
         edit.head = Vector([0, 0, 0])
         edit.tail = Vector([1, 0, 0])
 
@@ -40,40 +41,46 @@ def armature_to_bstruct(self, arm):
     bpy.ops.object.mode_set(mode='OBJECT')
 
 
-struct_gb.GBArmature.to_bstruct = armature_to_bstruct
+def add_animation(self, obj, pose_matrices):
+    bpy.context.scene.objects.active = obj
+    bpy.ops.object.mode_set(mode='POSE')
+
+    p = Matrix([
+        [ 0, 1, 0, 0],
+        [-1, 0, 0, 0],
+        [ 0, 0, 1, 0],
+        [ 0, 0, 0, 1],
+    ])
+
+    zipped = zip(
+        self.keyframes,
+        self.keyframe_frames,
+        self.keyframe_events
+    )
+
+    for i, (keyframe, frame, event) in enumerate(zipped):
+        frame = (frame / 1000) * 24
+
+        for j, m in enumerate(keyframe):
+            pose = obj.pose.bones['Bone_%03d' % j]
+
+            matrix = pose_matrices[m]
+
+            for parent in pose.parent_recursive:
+                matrix = pose_matrices[keyframe[int(parent.name[-3:])]] * matrix
+
+            pose.matrix = matrix * p
+
+            bpy.context.scene.update()
+
+            pose.keyframe_insert('location', frame=frame)
+            pose.keyframe_insert('rotation_quaternion', frame=frame)
+            pose.keyframe_insert('scale', frame=frame)
+
+    bpy.ops.object.mode_set(mode='OBJECT')
 
 
-def material_to_bstruct(self, path, name):
-    mtrl = bpy.data.materials.new('material')
-    mtrl.use_transparency = True
-    mtrl.alpha = 0
-
-    tex = bpy.data.textures.new('texture', 'IMAGE')
-
-    # Textures are either in the tex dir, or in the common dir
-    try:
-        tex.image = bpy.data.images.load(
-                os.path.join(path, 'tex', self.texture))
-
-    except:
-        path = utility.get_common_path(path)
-
-        tex.image = bpy.data.images.load(
-                os.path.join(path, 'tex', self.texture))
-
-    mtex = mtrl.texture_slots.add()
-    mtex.texture_coords = 'UV'
-    mtex.texture = tex
-    mtex.use_map_alpha = True
-    mtex.alpha_factor = 1
-
-    return mtrl
-
-
-struct_gb.GBMaterial.to_bstruct = material_to_bstruct
-
-
-def create_mesh(self):
+def add_mesh(self, obj):
     bm = bmesh.new()
 
     # Vertices
@@ -102,23 +109,14 @@ def create_mesh(self):
                 uv[0] = +self.verts[v_index]['t0'][0]
                 uv[1] = -self.verts[v_index]['t0'][1]
 
-    # Create Blender mesh
-    mesh = bpy.data.meshes.new('mesh')
-
-    bm.to_mesh(mesh)
+    bm.to_mesh(obj.data)
     bm.free()
 
-    return mesh
 
-
-struct_gb.GBMesh.create_mesh = create_mesh
-struct_gb.GBCollision.create_mesh = create_mesh
-
-
-def insert_groups(self, obj):
+def add_groups(self, obj):
     groups = []
     for index in self.bones:
-        groups.append(obj.vertex_groups.new('bone_%03d' % index))
+        groups.append(obj.vertex_groups.new('Bone_%03d' % index))
 
     for i, v in enumerate(self.verts):
         if 'weights' in v:
@@ -134,10 +132,35 @@ def insert_groups(self, obj):
                 group.add([i], 1.0, 'ADD')
 
 
-struct_gb.GBMesh.insert_groups = insert_groups
+# TODO Refactor material import
+# def material_to_bstruct(self, path, name):
+#     mtrl = bpy.data.materials.new('material')
+#     mtrl.use_transparency = True
+#     mtrl.alpha = 0
+#
+#     tex = bpy.data.textures.new('texture', 'IMAGE')
+#
+#     # Textures are either in the tex dir, or in the common dir
+#     try:
+#         tex.image = bpy.data.images.load(
+#                 os.path.join(path, 'tex', self.texture))
+#
+#     except:
+#         path = utility.get_common_path(path)
+#
+#         tex.image = bpy.data.images.load(
+#                 os.path.join(path, 'tex', self.texture))
+#
+#     mtex = mtrl.texture_slots.add()
+#     mtex.texture_coords = 'UV'
+#     mtex.texture = tex
+#     mtex.use_map_alpha = True
+#     mtex.alpha_factor = 1
+#
+#     return mtrl
 
-
-def to_matrix(self):
+@property
+def matrix(self):
     mat_rot = Quaternion(self.rotation).to_matrix().to_4x4()
 
     mat_sca = Matrix([
@@ -149,110 +172,111 @@ def to_matrix(self):
     return Matrix.Translation(self.position) * mat_rot * mat_sca
 
 
-struct_gb.GBTransformation.to_matrix = to_matrix
+def setup():
+    struct_gb.GBAnimation.add_animation = add_animation
+    struct_gb.GBArmature.add_armature = add_armature
+    struct_gb.GBTransformation.matrix = matrix
+    struct_gb.GBCollision.add_mesh = add_mesh
+    struct_gb.GBMesh.add_mesh = add_mesh
+    struct_gb.GBMesh.add_groups = add_groups
 
 
-def apply_animation(self, pose_matrices, obj):
-    bpy.ops.object.mode_set(mode='POSE')
-
-    p = Matrix([
-        [ 0, 1, 0, 0],
-        [-1, 0, 0, 0],
-        [ 0, 0, 1, 0],
-        [ 0, 0, 0, 1],
-    ])
-
-    zipped = zip(
-        self.keyframes,
-        self.keyframe_frames,
-        self.keyframe_events
-    )
-
-    for i, (keyframe, frame, event) in enumerate(zipped):
-        frame = (frame / 1000) * 24
-
-        for j, m in enumerate(keyframe):
-            pose = obj.pose.bones['bone_%03d' % j]
-
-            matrix = pose_matrices[m]
-
-            for parent in pose.parent_recursive:
-                matrix = pose_matrices[keyframe[int(parent.name[-3:])]] * matrix
-
-            pose.matrix = matrix * p
-
-            bpy.context.scene.update()
-
-            pose.keyframe_insert('location', frame=frame)
-            pose.keyframe_insert('rotation_quaternion', frame=frame)
-            pose.keyframe_insert('scale', frame=frame)
+setup()
 
 
-    bpy.context.scene.frame_start = self.keyframe_frames[0] / 1000 * 24
-    bpy.context.scene.frame_end = self.keyframe_frames[-1] / 1000 * 24
+def auto_import(context, filepath, parent,
+        import_dds=False,
+        import_sfx=False):
 
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-
-struct_gb.GBAnimation.apply_animation = apply_animation
-
-
-def scene_import(context, path):
-    # Fixes DirectX axes
-    rot_x_pos90 = Matrix.Rotation(math.pi / 2.0, 4, 'X')
-
-    with open(path, 'rb') as stream:
+    # Load GB
+    with open(filepath, 'rb') as stream:
         gb = struct_gb.GBFile().parse(stream)
 
-        name = os.path.basename(path)
-        name = os.path.splitext(name)[0]
-        path = os.path.dirname(path)
+    # Get existing or create new parent object
+    if parent not in bpy.data.objects:
+        parent = bpy.data.objects.new(parent, None)
 
-        scene = context.scene
+        # Converts DirectX/OpenGL coordinate system difference
+        parent.matrix_world = Matrix.Rotation(math.pi / 2, 4, 'X')
 
-        # Load meshes
-        for i, mesh in enumerate(gb.meshes):
-            obj = bpy.data.objects.new(
-                    name + '_' + str(i), mesh.create_mesh())
+        context.scene.objects.link(parent)
+        context.scene.objects.active = parent
+    else:
+        parent = bpy.data.objects[parent]
 
-            mesh.insert_groups(obj)
+    # Get path and name without extension
+    path = os.path.dirname(filepath)
+    name = os.path.splitext(
+            os.path.basename(filepath))[0]
 
-            # TODO make materials optional, add user defined path
+    # Add armature
+    if gb.armature is not None:
+        dat = bpy.data.armatures.new('Armature')
+        obj = bpy.data.objects.new(name + '_Armature', dat)
 
-            # obj.data.materials.append(
-            #         mesh.material.to_bstruct(path, name))
+        context.scene.objects.link(obj)
+        context.scene.objects.active = obj
+        obj.parent = parent
 
-            obj.matrix_world = rot_x_pos90 * obj.matrix_world
+        gb.armature.add_armature(obj)
 
-            scene.objects.link(obj)
+        # Link to existing meshes
+        for mesh in parent.children:
+            if mesh.type == 'MESH':
+                mesh.modifiers.new('Armature', 'ARMATURE').object = obj
 
-        # Load armature
-        if gb.armature:
-            arm = bpy.data.armatures.new('armature')
-            obj = bpy.data.objects.new(name + '_armature', arm)
+    # Get armature object if it exists
+    for armature in parent.children:
+        if armature.type == 'ARMATURE':
+            break
+    else:
+        armature = None
 
-            obj.matrix_world = rot_x_pos90 * obj.matrix_world
+    # Add meshes
+    for mesh in gb.meshes:
+        dat = bpy.data.meshes.new('Mesh')
+        obj = bpy.data.objects.new(name + '_Mesh', dat)
 
-            scene.objects.link(obj)
-            scene.objects.active = obj
+        context.scene.objects.link(obj)
+        context.scene.objects.active = obj
+        obj.parent = parent
 
-            gb.armature.to_bstruct(arm)
+        mesh.add_mesh(obj)
+        mesh.add_groups(obj)
 
-        # TODO Create separate animation action
-        if gb.animations:
-            pose_matrices = [m.to_matrix() for m in gb.transformations]
+        # TODO Add materials
 
-            gb.animations[0].apply_animation(
-                    pose_matrices, bpy.context.object)
+        # Link to existing armature
+        if armature is not None:
+            obj.modifiers.new('Armature', 'ARMATURE').object = armature
 
-        if gb.collision:
-            obj = bpy.data.objects.new(
-                    name + '_collision', gb.collision.create_mesh())
+    # Add animations
+    if gb.animations is not None:
+        pose_matrices = [t.matrix for t in gb.transformations]
 
-            obj.hide = True
-            obj.matrix_world = rot_x_pos90 * obj.matrix_world
+        if armature is None:
+            pass  # TODO Error
+        else:
+            for animation in gb.animations:
+                armature.animation_data_create()
+                armature.animation_data.action = (
+                        bpy.data.actions.new(name=name))
 
-            scene.objects.link(obj)
+                animation.add_animation(armature, pose_matrices)
 
+    # Add collision
+    if gb.collision is not None:
+        dat = bpy.data.meshes.new('Mesh')
+        obj = bpy.data.objects.new(name + '_Collision', dat)
+
+        context.scene.objects.link(obj)
+        context.scene.objects.active = obj
+        obj.parent = parent
+
+        # Hide collision object
+        obj.hide_render = True
+        obj.hide = True
+
+        gb.collision.add_mesh(obj)
 
     return {'FINISHED'}

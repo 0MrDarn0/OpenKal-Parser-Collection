@@ -1,15 +1,15 @@
 bl_info = {
-    "name" : "OpenKal GB Format", "category": "Import-Export",
+    'name' : 'OpenKal GB Format', 'category': 'Import-Export',
 }
 
 
-if "bpy" in locals():
+if 'bpy' in locals():
     import importlib
 
-    if "import_gb" in locals():
+    if 'import_gb' in locals():
         importlib.reload(import_gb)
 
-    if "export_gb" in locals():
+    if 'export_gb' in locals():
         importlib.reload(export_gb)
 
 
@@ -23,39 +23,48 @@ from bpy_extras.io_utils import ExportHelper
 
 
 class ImportGB(bpy.types.Operator, ImportHelper):
-    bl_idname = "openkal.import_gb"
-    bl_label  = "Import GB"
+    """Import a KalOnline GB file"""
+    bl_idname = 'openkal.import_gb'
+    bl_label  = 'Import GB'
 
-    filter_glob = bpy.props.StringProperty(
-        default = "*.gb",
+    parent = bpy.props.StringProperty(
+        name='Object Name', default='Untitled',
     )
 
-    filename_ext = ".gb"
+    import_dds = bpy.props.BoolProperty(name='Import DDS')
+    import_sfx = bpy.props.BoolProperty(name='Import SFX')
+
+    filename_ext = '.gb'
+    filter_glob = bpy.props.StringProperty(
+        default='*.gb', options={'HIDDEN'},
+    )
 
     def execute(self, context):
-        return import_gb.scene_import(context, self.properties.filepath)
+        return import_gb.auto_import(context,
+                **self.as_keywords(ignore=('filter_glob',)))
 
 
 class ExportGB(bpy.types.Operator, ExportHelper):
-    bl_idname = "openkal.export_gb"
-    bl_label  = "Export GB"
+    """Export a KalOnline GB file"""
+    bl_idname = 'openkal.export_gb'
+    bl_label  = 'Export GB'
 
+    filename_ext = '.gb'
     filter_glob = bpy.props.StringProperty(
-        default = "*.gb",
+        default='*.gb', options={'HIDDEN'},
     )
 
-    filename_ext = ".gb"
-
     def execute(self, context):
-        return export_gb.scene_export(context, self.properties.filepath)
+        return export_gb.auto_export(context,
+                **self.as_keywords(ignore=('filter_glob',)))
 
 
 def menu_func_import(self, context):
-    self.layout.operator(ImportGB.bl_idname, text="OpenKal Geometry (.gb)")
+    self.layout.operator(ImportGB.bl_idname, text='OpenKal Geometry (.gb)')
 
 
 def menu_func_export(self, context):
-    self.layout.operator(ExportGB.bl_idname, text="OpenKal Geometry (.gb)")
+    self.layout.operator(ExportGB.bl_idname, text='OpenKal Geometry (.gb)')
 
 
 classes = (
@@ -80,5 +89,5 @@ def unregister():
         bpy.utils.unregister_class(cls)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     register()
