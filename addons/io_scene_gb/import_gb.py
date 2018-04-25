@@ -132,32 +132,80 @@ def add_groups(self, obj):
                 group.add([i], 1.0, 'ADD')
 
 
-# TODO Refactor material import
-# def material_to_bstruct(self, path, name):
-#     mtrl = bpy.data.materials.new('material')
-#     mtrl.use_transparency = True
-#     mtrl.alpha = 0
-#
-#     tex = bpy.data.textures.new('texture', 'IMAGE')
-#
-#     # Textures are either in the tex dir, or in the common dir
-#     try:
-#         tex.image = bpy.data.images.load(
-#                 os.path.join(path, 'tex', self.texture))
-#
-#     except:
-#         path = utility.get_common_path(path)
-#
-#         tex.image = bpy.data.images.load(
-#                 os.path.join(path, 'tex', self.texture))
-#
-#     mtex = mtrl.texture_slots.add()
-#     mtex.texture_coords = 'UV'
-#     mtex.texture = tex
-#     mtex.use_map_alpha = True
-#     mtex.alpha_factor = 1
-#
-#     return mtrl
+def add_materials(self, obj, image=None):
+    mat = bpy.data.materials.new('Material')
+    mat.use_nodes = True
+
+    obj.data.materials.append(mat)
+
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+
+    # Clear existing nodes
+    nodes.clear()
+    links.clear()
+
+    # Create nodes
+    node_coord = nodes.new('ShaderNodeTexCoord')
+    node_coord.location.x = -980
+    node_coord.location.y = 0
+    node_coord.object = obj
+
+    node_mapping = nodes.new('ShaderNodeMapping')
+    node_mapping.name = 'Mapping'
+    node_mapping.location.x = -780
+    node_mapping.location.y = 0
+    node_mapping.vector_type = 'TEXTURE'
+    node_mapping.translation[0] = self.material.frames[0].texture_off[0]
+    node_mapping.translation[1] = self.material.frames[0].texture_off[1]
+    node_mapping.rotation[0] = self.material.frames[0].texture_rot[0]
+    node_mapping.rotation[1] = self.material.frames[0].texture_rot[1]
+    node_mapping.rotation[2] = self.material.frames[0].texture_rot[2]
+
+    node_image = nodes.new('ShaderNodeTexImage')
+    node_image.location.x = -400
+    node_image.location.y = 0
+    node_image.image = image
+
+    node_diffuse = nodes.new('ShaderNodeBsdfDiffuse')
+    node_diffuse.location.x = -200
+    node_diffuse.location.y = 100
+
+    node_alpha_a = nodes.new('ShaderNodeBsdfTransparent')
+    node_alpha_a.location.x = -200
+    node_alpha_a.location.y = -80
+
+    node_mixer_a = nodes.new('ShaderNodeMixShader')
+    node_mixer_a.location.x = 20
+    node_mixer_a.location.y = 0
+
+    node_alpha_o = nodes.new('ShaderNodeBsdfTransparent')
+    node_alpha_o.location.x = 20
+    node_alpha_o.location.y = 100
+
+    node_mixer_o = nodes.new('ShaderNodeMixShader')
+    node_mixer_o.name = 'Opacity'
+    node_mixer_o.location.x = 220
+    node_mixer_o.location.y = 0
+    node_mixer_o.inputs[0].default_value = (
+            self.material.frames[0].opacity
+    )
+
+    node_output = nodes.new('ShaderNodeOutputMaterial')
+    node_output.location.x = 420
+    node_output.location.y = 0
+
+    # Create links
+    links.new(node_output.inputs[0], node_mixer_o.outputs[0])
+    links.new(node_mixer_o.inputs[1], node_alpha_o.outputs[0])
+    links.new(node_mixer_o.inputs[2], node_mixer_a.outputs[0])
+    links.new(node_mixer_a.inputs[0], node_image.outputs[1])
+    links.new(node_mixer_a.inputs[1], node_alpha_a.outputs[0])
+    links.new(node_mixer_a.inputs[2], node_diffuse.outputs[0])
+    links.new(node_diffuse.inputs[0], node_image.outputs[0])
+    links.new(node_image.inputs[0], node_mapping.outputs[0])
+    links.new(node_mapping.inputs[0], node_coord.outputs[2])
+
 
 @property
 def matrix(self):
@@ -172,21 +220,39 @@ def matrix(self):
     return Matrix.Translation(self.position) * mat_rot * mat_sca
 
 
+def read_image(path, name):
+    # Search in the object-relative and common texture directory
+    for path in [path, utility.get_common_path(path)]:
+        try:
+            return bpy.data.images.load(
+                    os.path.join(path, 'tex', name))
+
+        except RuntimeError:
+            print('Warning: Could not open "%s".' %
+                    os.path.join(path, 'tex', name))
+
+    return None
+
+
 def setup():
+    """Adds custom Blender import methods to GB objects"""
     struct_gb.GBAnimation.add_animation = add_animation
     struct_gb.GBArmature.add_armature = add_armature
     struct_gb.GBTransformation.matrix = matrix
     struct_gb.GBCollision.add_mesh = add_mesh
     struct_gb.GBMesh.add_mesh = add_mesh
     struct_gb.GBMesh.add_groups = add_groups
-
-
-setup()
+    struct_gb.GBMesh.add_materials = add_materials
 
 
 def auto_import(context, filepath, parent,
         import_dds=False,
         import_sfx=False):
+
+    setup()
+
+    # The cycles renderer is needed for material nodes
+    bpy.context.scene.render.engine = 'CYCLES'
 
     # Load GB
     with open(filepath, 'rb') as stream:
@@ -244,18 +310,23 @@ def auto_import(context, filepath, parent,
         mesh.add_mesh(obj)
         mesh.add_groups(obj)
 
-        # TODO Add materials
+        if import_dds:
+            image = read_image(path, mesh.material.texture.lower())
+        else:
+            image = None
+
+        mesh.add_materials(obj, image)
 
         # Link to existing armature
         if armature is not None:
             obj.modifiers.new('Armature', 'ARMATURE').object = armature
 
     # Add animations
-    if gb.animations is not None:
+    if gb.animations:
         pose_matrices = [t.matrix for t in gb.transformations]
 
         if armature is None:
-            pass  # TODO Error
+            print('Info: Imported animation without existing armature.')
         else:
             for animation in gb.animations:
                 armature.animation_data_create()

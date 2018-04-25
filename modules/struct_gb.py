@@ -100,54 +100,71 @@ class GBTransformation(object):
 class GBMaterial(object):
     __slots__ = [
         'texture',
-        'texture_off',
-        'texture_rot',
         'options',
-        'light_a',
-        'light_d',
-        'light_s',
-        'opacity',
+        'frames',
     ]
 
-    _OPTION_TWOSIDED      = 1
-    _OPTION_MAP_OPACITY   = 2
-    _OPTION_MAP_ALPHA_RGB = 4
-    _OPTION_SPECULAR      = 8
-    _OPTION_LIGHT         = 32
-    _OPTION_LIGHTMAP      = 256
-    _OPTION_FX            = 512
+    OPTIONS = {
+        0x1   : 'TWOSIDED',
+        0x2   : 'OPACITY',
+        0x4   : 'ARGB',
+        0x8   : 'SPECULAR',
+        0x20  : 'LIGHT',
+        0x100 : 'LIGHTMAP',
+        0x200 : 'FX',
+    }
 
-    def parse_descriptor(self, descriptor):
+    def parse_descriptor(self, descriptor, frame_count):
+        descriptor.seek(self.frames)
+
+        self.frames = []
+        for _ in range(frame_count):
+            self.frames.append(GBMateiralFrame().parse(descriptor))
+
         self.texture = utility.read_string_zero(descriptor, self.texture)
-
-        descriptor.seek(self.light_a)
-        self.light_a = utility.read_d3d_color(descriptor)  # ambient
-        self.light_d = utility.read_d3d_color(descriptor)  # diffuse
-        self.light_s = utility.read_d3d_color(descriptor)  # specular
-        self.opacity = unpack('<f', descriptor.read(4))[0]
-
-        self.texture_off = utility.read_d3dx_vector2(descriptor)
-        self.texture_rot = utility.read_d3dx_vector3(descriptor)
-
-        if not self.texture_off.any():
-            self.texture_off = None
-
-        if not self.texture_rot.any():
-            self.texture_rot = None
 
     def write_descriptor(self, descriptor):
         raise NotImplementedError
 
     def parse(self, stream):
-        # Texture, option and light_a are descriptor indexes
-        # _ (1) = option
-        # _ (2) = power
-
         self.texture, \
         self.options, \
         _,            \
         _,            \
-        self.light_a = unpack('<IHIfI', stream.read(18))
+        self.frames = unpack('<IHIfI', stream.read(18))
+
+        # Create option set
+        options = set()
+        for v in GBMaterial.OPTIONS:
+            if self.options & v:
+                options.add(GBMaterial.OPTIONS[v])
+
+        self.options = options
+
+        return self
+
+    def write(self, stream):
+        raise NotImplementedError
+
+
+class GBMateiralFrame(object):
+    __slots__ = [
+        'texture_off',
+        'texture_rot',
+        'light_a',  # ambient
+        'light_d',  # diffuse
+        'light_s',  # specular
+        'opacity',
+    ]
+
+    def parse(self, stream):
+        self.light_a = utility.read_d3d_color(stream)
+        self.light_d = utility.read_d3d_color(stream)
+        self.light_s = utility.read_d3d_color(stream)
+        self.opacity = unpack('<f', stream.read(4))[0]
+
+        self.texture_off = utility.read_d3dx_vector2(stream)
+        self.texture_rot = utility.read_d3dx_vector3(stream)
 
         return self
 
@@ -423,7 +440,10 @@ class GBFile(object):
             stream.read(1)
 
         material_count, \
-        material_count_frame = unpack('<HH', stream.read(4))
+        material_frame_count = unpack('<HH', stream.read(4))
+
+        if not material_count:
+            material_frame_count = 0
 
         if version >= 11:
             self.bounding_box_min = utility.read_d3dx_vector3(stream)
@@ -475,7 +495,7 @@ class GBFile(object):
             mesh.parse_descriptor(descriptor)
 
         for mtrl in materials:
-            mtrl.parse_descriptor(descriptor)
+            mtrl.parse_descriptor(descriptor, material_frame_count)
 
         # Replace material indexes with materials
         for mesh in self.meshes:
