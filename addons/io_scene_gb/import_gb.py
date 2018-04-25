@@ -58,11 +58,11 @@ def add_animation(self, obj, pose_matrices):
         self.keyframe_events
     )
 
-    for i, (keyframe, frame, event) in enumerate(zipped):
+    for keyframe, frame, event in zipped:
         frame = (frame / 1000) * 24
 
-        for j, m in enumerate(keyframe):
-            pose = obj.pose.bones['Bone_%03d' % j]
+        for i, m in enumerate(keyframe):
+            pose = obj.pose.bones['Bone_%03d' % i]
 
             matrix = pose_matrices[m]
 
