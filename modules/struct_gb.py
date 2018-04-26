@@ -195,9 +195,8 @@ class GBMesh(object):
     _VT_RIGID_DOUBLE = 5
     _VT_END          = 6
 
-    def _correct(self, indexes):
+    def mkfaces(indexes):
         result = []
-
         # Example: [0,1,2,3,4,5] -> [(0,1,2),(3,4,5)]
         for a, b, c in zip(*[iter(indexes)] * 3):
             if a == b or a == c or b == c:
@@ -207,7 +206,7 @@ class GBMesh(object):
 
         return result
 
-    def _unstrip(self, indexes):
+    def unstrip(indexes):
         """Converts an index strip to an index list."""
         result = []
         for i in range(len(indexes) - 2):
@@ -217,6 +216,20 @@ class GBMesh(object):
                 result.extend([indexes[i], indexes[i + 2], indexes[i + 1]])
 
         return result
+
+    def rmdupes(faces):
+        """Removes duplicates ignoring order, e.g. (0, 1, 2) == (2, 1, 0)."""
+        mask = []
+        seen = set()
+        for s in map(frozenset, faces):
+            if s in seen:
+                mask.append(False)
+            else:
+                mask.append(True)
+
+            seen.add(s)
+
+        return np.array(faces)[np.array(mask)]
 
     def _parse_vertex(self, stream, v_type):
         vertex = {'v' : utility.read_d3dx_vector3(stream)}
@@ -277,12 +290,11 @@ class GBMesh(object):
         for _ in range(f_count):
             self.faces.append(unpack('<H', stream.read(2))[0])
 
-        # _FT_STRIP and _FT_END must be unstripped
-        if f_type:
-            self.faces = self._unstrip(self.faces)
-            self.faces = self._correct(self.faces)
-        else:
-            self.faces = self._correct(self.faces)
+        if f_type != GBMesh._FT_LIST:
+            self.faces = GBMesh.unstrip(self.faces)
+
+        self.faces = GBMesh.mkfaces(self.faces)
+        self.faces = GBMesh.rmdupes(self.faces)
 
         return self
 
@@ -323,18 +335,7 @@ class GBCollision(object):
         self.verts = [{'v' : v} for v in
                 self.scale * self.verts + self.bounding_box_min]
 
-        # Remove duplicates ignoring order, e.g. (0, 1, 2) = (2, 1, 0)
-        mask = []
-        seen = set()
-        for s in map(frozenset, self.faces):
-            if s in seen:
-                mask.append(False)
-            else:
-                mask.append(True)
-
-            seen.add(s)
-
-        self.faces = self.faces[np.array(mask)] // 3
+        self.faces = GBMesh.rmdupes(self.faces) // 3
 
         return self
 
