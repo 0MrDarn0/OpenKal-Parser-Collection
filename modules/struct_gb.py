@@ -119,7 +119,7 @@ class GBMaterial(object):
 
         self.frames = []
         for _ in range(frame_count):
-            self.frames.append(GBMateiralFrame().parse(descriptor))
+            self.frames.append(GBMaterialFrame().parse(descriptor))
 
         self.texture = utility.read_string_zero(descriptor, self.texture)
 
@@ -147,7 +147,7 @@ class GBMaterial(object):
         raise NotImplementedError
 
 
-class GBMateiralFrame(object):
+class GBMaterialFrame(object):
     __slots__ = [
         'texture_off',
         'texture_rot',
