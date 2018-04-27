@@ -202,9 +202,7 @@ def add_materials(self, obj, image=None):
     nodes[1].vector_type = 'TEXTURE'
     nodes[1].translation[0] = self.material.frame.texture_off[0]
     nodes[1].translation[1] = self.material.frame.texture_off[1]
-    nodes[1].rotation[0] = self.material.frame.texture_rot[0]
-    nodes[1].rotation[1] = self.material.frame.texture_rot[1]
-    nodes[1].rotation[2] = self.material.frame.texture_rot[2]
+    nodes[1].rotation = self.material.frame.texture_rot
 
     # Set image
     nodes[2].image = image
@@ -251,6 +249,25 @@ def add_materials(self, obj, image=None):
     links.new(nodes[1].inputs[0], nodes[0].outputs[2])
 
 
+def add_material_animation(self, obj, keyframe_frames):
+    # Only one material is created during import
+    nodes = obj.data.materials[0].node_tree.nodes
+    mapping = nodes['Mapping']
+    opacity = nodes['Opacity']
+
+    for data, frame in zip(self.material.frames, keyframe_frames):
+        frame = (frame / 1000) * 24
+
+        mapping.translation[0] = data.texture_off[0]
+        mapping.translation[1] = data.texture_off[1]
+        mapping.rotation = data.texture_rot
+        opacity.inputs[0].default_value = data.opacity
+
+        mapping.keyframe_insert('translation', frame=frame)
+        mapping.keyframe_insert('rotation', frame=frame)
+        opacity.inputs[0].keyframe_insert('default_value', frame=frame)
+
+
 @property
 def matrix(self):
     mat_rot = Quaternion(self.rotation).to_matrix().to_4x4()
@@ -287,6 +304,7 @@ def setup():
     struct_gb.GBMesh.add_mesh = add_mesh
     struct_gb.GBMesh.add_groups = add_groups
     struct_gb.GBMesh.add_materials = add_materials
+    struct_gb.GBMesh.add_material_animation = add_material_animation
 
 
 def auto_import(context, filepath, parent,
@@ -342,6 +360,9 @@ def auto_import(context, filepath, parent,
     else:
         armature = None
 
+    # Mapping used to insert materials later
+    mesh_mapping = {}
+
     # Add meshes
     for mesh in gb.meshes:
         dat = bpy.data.meshes.new('Mesh')
@@ -365,19 +386,27 @@ def auto_import(context, filepath, parent,
         if armature is not None:
             obj.modifiers.new('Armature', 'ARMATURE').object = armature
 
+        mesh_mapping[obj.name] = (mesh, obj)
+
     # Add animations
     if gb.animations:
         pose_matrices = [t.matrix for t in gb.transformations]
 
-        if armature is None:
-            print('Info: Imported animation without existing armature.')
-        else:
-            for animation in gb.animations:
+        for animation in gb.animations:
+            if armature is None:
+                print('Info: Imported animation without existing armature.')
+            else:
                 armature.animation_data_create()
                 armature.animation_data.action = (
                         bpy.data.actions.new(name=name))
 
                 animation.add_animation(armature, pose_matrices)
+
+            # Animate materials
+            for name, (mesh, obj) in mesh_mapping.items():
+                if mesh.material.provides_animation:
+                    mesh.add_material_animation(
+                            obj, animation.keyframe_frames)
 
     # Add collision
     if gb.collision is not None:

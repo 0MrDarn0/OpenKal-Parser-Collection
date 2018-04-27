@@ -147,6 +147,10 @@ class GBMaterial(object):
         raise NotImplementedError
 
     @property
+    def provides_animation(self):
+        return len(self.frames) > 1
+
+    @property
     def frame(self):
         return self.frames[0]
 
