@@ -146,6 +146,10 @@ class GBMaterial(object):
     def write(self, stream):
         raise NotImplementedError
 
+    @property
+    def frame(self):
+        return self.frames[0]
+
 
 class GBMaterialFrame(object):
     __slots__ = [

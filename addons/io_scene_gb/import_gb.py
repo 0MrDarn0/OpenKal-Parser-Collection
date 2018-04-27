@@ -145,66 +145,110 @@ def add_materials(self, obj, image=None):
     nodes.clear()
     links.clear()
 
-    # Create nodes
-    node_coord = nodes.new('ShaderNodeTexCoord')
-    node_coord.location.x = -980
-    node_coord.location.y = 0
-    node_coord.object = obj
+    # Create new nodes
+    new_nodes = []
+    new_nodes.append(nodes.new('ShaderNodeTexCoord'))
+    new_nodes.append(nodes.new('ShaderNodeMapping'))
+    new_nodes.append(nodes.new('ShaderNodeTexImage'))
+    new_nodes.append(nodes.new('ShaderNodeBsdfDiffuse'))
 
-    node_mapping = nodes.new('ShaderNodeMapping')
-    node_mapping.name = 'Mapping'
-    node_mapping.location.x = -780
-    node_mapping.location.y = 0
-    node_mapping.vector_type = 'TEXTURE'
-    node_mapping.translation[0] = self.material.frames[0].texture_off[0]
-    node_mapping.translation[1] = self.material.frames[0].texture_off[1]
-    node_mapping.rotation[0] = self.material.frames[0].texture_rot[0]
-    node_mapping.rotation[1] = self.material.frames[0].texture_rot[1]
-    node_mapping.rotation[2] = self.material.frames[0].texture_rot[2]
+    if 'SPECULAR' in self.material.options:
+        new_nodes.append(nodes.new('ShaderNodeBsdfGlossy'))
+        new_nodes.append(nodes.new('ShaderNodeMixShader'))
+    else:
+        new_nodes.append(None)
+        new_nodes.append(None)
 
-    node_image = nodes.new('ShaderNodeTexImage')
-    node_image.location.x = -400
-    node_image.location.y = 0
-    node_image.image = image
+    new_nodes.append(nodes.new('ShaderNodeBsdfTransparent'))
 
-    node_diffuse = nodes.new('ShaderNodeBsdfDiffuse')
-    node_diffuse.location.x = -200
-    node_diffuse.location.y = 100
+    if 'ARGB' in self.material.options:
+        new_nodes.append(nodes.new('ShaderNodeAddShader'))
+    else:
+        new_nodes.append(nodes.new('ShaderNodeMixShader'))
 
-    node_alpha_a = nodes.new('ShaderNodeBsdfTransparent')
-    node_alpha_a.location.x = -200
-    node_alpha_a.location.y = -80
+    new_nodes.append(nodes.new('ShaderNodeBsdfTransparent'))
+    new_nodes.append(nodes.new('ShaderNodeMixShader'))
+    new_nodes.append(nodes.new('ShaderNodeOutputMaterial'))
 
-    node_mixer_a = nodes.new('ShaderNodeMixShader')
-    node_mixer_a.location.x = 20
-    node_mixer_a.location.y = 0
+    nodes = new_nodes
 
-    node_alpha_o = nodes.new('ShaderNodeBsdfTransparent')
-    node_alpha_o.location.x = 20
-    node_alpha_o.location.y = 100
+    # Node coodinates and names for material animations
+    data = [
+        ((-980, 0),   None),
+        ((-780, 0),   'Mapping'),
+        ((-400, 0),   None),
+        ((-200, 100), None),
+        ((-200, 260), None),
+        ((0, 260),    None),
+        ((0, -100),   None),
+        ((200, 0),    None),
+        ((200, 100),  None),
+        ((400, 0),    'Opacity'),
+        ((600, 0),    None),
+    ]
 
-    node_mixer_o = nodes.new('ShaderNodeMixShader')
-    node_mixer_o.name = 'Opacity'
-    node_mixer_o.location.x = 220
-    node_mixer_o.location.y = 0
-    node_mixer_o.inputs[0].default_value = (
-            self.material.frames[0].opacity
+    for ((x, y), name), node in zip(data, nodes):
+        if node is not None:
+            node.location.x = x
+            node.location.y = y
+
+            if name is not None:
+                node.name = name
+
+    # Set object (uv coordinates)
+    nodes[0].object = obj
+
+    # Set mapping
+    nodes[1].vector_type = 'TEXTURE'
+    nodes[1].translation[0] = self.material.frame.texture_off[0]
+    nodes[1].translation[1] = self.material.frame.texture_off[1]
+    nodes[1].rotation[0] = self.material.frame.texture_rot[0]
+    nodes[1].rotation[1] = self.material.frame.texture_rot[1]
+    nodes[1].rotation[2] = self.material.frame.texture_rot[2]
+
+    # Set image
+    nodes[2].image = image
+
+    # Set opacity
+    nodes[9].inputs[0].default_value = (
+            self.material.frame.opacity
     )
 
-    node_output = nodes.new('ShaderNodeOutputMaterial')
-    node_output.location.x = 420
-    node_output.location.y = 0
+    # Set gloss
+    if nodes[5] is not None:
+        nodes[5].inputs[0].default_value = 0.8
 
-    # Create links
-    links.new(node_output.inputs[0], node_mixer_o.outputs[0])
-    links.new(node_mixer_o.inputs[1], node_alpha_o.outputs[0])
-    links.new(node_mixer_o.inputs[2], node_mixer_a.outputs[0])
-    links.new(node_mixer_a.inputs[0], node_image.outputs[1])
-    links.new(node_mixer_a.inputs[1], node_alpha_a.outputs[0])
-    links.new(node_mixer_a.inputs[2], node_diffuse.outputs[0])
-    links.new(node_diffuse.inputs[0], node_image.outputs[0])
-    links.new(node_image.inputs[0], node_mapping.outputs[0])
-    links.new(node_mapping.inputs[0], node_coord.outputs[2])
+    # Output and opacity mix shader
+    links.new(nodes[10].inputs[0], nodes[9].outputs[0])
+    links.new(nodes[9].inputs[1], nodes[8].outputs[0])
+    links.new(nodes[9].inputs[2], nodes[7].outputs[0])
+
+    mix_shader = 'ARGB' not in self.material.options
+
+    # Use image alpha
+    if mix_shader:
+        links.new(nodes[7].inputs[0], nodes[2].outputs[1])
+
+    if 'SPECULAR' in self.material.options:
+        # Alpha mix or add shader
+        links.new(nodes[7].inputs[mix_shader + 0], nodes[6].outputs[0])
+        links.new(nodes[7].inputs[mix_shader + 1], nodes[5].outputs[0])
+
+        # Glossy mix
+        links.new(nodes[5].inputs[1], nodes[4].outputs[0])
+        links.new(nodes[5].inputs[2], nodes[3].outputs[0])
+
+        # Glossy
+        links.new(nodes[4].inputs[0], nodes[2].outputs[0])
+    else:
+        # Alpha mix or add shader
+        links.new(nodes[7].inputs[mix_shader + 0], nodes[6].outputs[0])
+        links.new(nodes[7].inputs[mix_shader + 1], nodes[3].outputs[0])
+
+    # Diffuse, mapping, coordinates
+    links.new(nodes[3].inputs[0], nodes[2].outputs[0])
+    links.new(nodes[2].inputs[0], nodes[1].outputs[0])
+    links.new(nodes[1].inputs[0], nodes[0].outputs[2])
 
 
 @property
@@ -225,11 +269,11 @@ def read_image(path, name):
     for path in [path, utility.get_common_path(path)]:
         try:
             return bpy.data.images.load(
-                    os.path.join(path, 'tex', name))
+                    os.path.join(path, 'tex', name), True)
 
         except RuntimeError:
-            print('Warning: Could not open "%s".' %
-                    os.path.join(path, 'tex', name))
+            print('Warning: Could not open "%s".'
+                    % os.path.join(path, 'tex', name))
 
     return None
 
