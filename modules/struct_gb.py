@@ -249,7 +249,7 @@ class GBMesh(object):
 
         # Bone indexes which influence this vertex
         if 1 <= v_type <= 4:
-            vertex['indexes'] = list(unpack('<4B', stream.read(4)))
+            vertex['indexes'] = np.frombuffer(stream.read(4), np.uint8)
 
         # Texture coordinate(s) and vertex normal
         vertex['vn'] = utility.read_d3dx_vector3(stream)

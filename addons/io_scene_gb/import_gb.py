@@ -128,8 +128,12 @@ def add_groups(self, obj):
             for index, weight in zip(v['indexes'], weights):
                 groups[index].add([i], weight, 'ADD')
         else:
-            for group in groups:
-                group.add([i], 1.0, 'ADD')
+            if 'indexes' in v:
+                for index in v['indexes']:
+                    groups[index].add([i], 1, 'ADD')
+            else:
+                for group in groups:
+                    group.add([i], 1.0, 'ADD')
 
 
 def add_materials(self, obj, image=None):
