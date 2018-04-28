@@ -325,7 +325,8 @@ def auto_import(context, filepath, parent,
         parent = bpy.data.objects.new(parent, None)
 
         # Converts DirectX/OpenGL coordinate system difference
-        parent.matrix_world = Matrix.Rotation(math.pi / 2, 4, 'X')
+        parent.matrix_world *= Matrix.Rotation(-math.pi / 2, 4, 'X')
+        parent.matrix_world *= Matrix.Scale(-1, 4, (0, 1, 0))
 
         context.scene.objects.link(parent)
         context.scene.objects.active = parent
