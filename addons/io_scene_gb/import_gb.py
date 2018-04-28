@@ -129,8 +129,7 @@ def add_groups(self, obj):
                 groups[index].add([i], weight, 'ADD')
         else:
             if 'indexes' in v:
-                for index in v['indexes']:
-                    groups[index].add([i], 1, 'ADD')
+                groups[v['indexes'][0]].add([i], 1.0, 'ADD')
             else:
                 for group in groups:
                     group.add([i], 1.0, 'ADD')
