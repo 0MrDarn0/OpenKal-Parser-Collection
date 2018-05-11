@@ -1,12 +1,12 @@
 import bpy
 import utility
 
-if 'struct_gb' in locals():
+if 'structs.gb' in locals():
     import importlib
 
-    importlib.reload(struct_gb)
+    importlib.reload(structs.gb)
 else:
-    import struct_gb
+    import structs.gb
 
 
 def scene_export(context, filepath):

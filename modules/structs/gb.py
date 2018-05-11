@@ -518,17 +518,3 @@ class GBFile(object):
 
     def write(self, stream):
         raise NotImplementedError
-
-
-def main(path):
-    with open(path, 'rb') as stream:
-        try:
-            gb = GBFile().parse(stream)
-
-        except (VersionError, ValidationError) as e:
-            print(str(e) + ' in ' + path)
-
-
-# Usage: python struct_gb.py path; performs a parse check, nothing else
-if __name__ == '__main__':
-    main(sys.argv[1])

@@ -45,17 +45,3 @@ class KSMFile(object):
 
     def write(self, stream):
         raise NotImplementedError
-
-
-def main(path):
-    with open(path, 'rb') as stream:
-        try:
-            ksm = KSMFile().parse(stream)
-
-        except (VersionError, ValidationError) as e:
-            print(str(e) + ' in ' + path)
-
-
-# Usage: python struct_ksm.py path; performs a parse check, nothing else
-if __name__ == '__main__':
-    main(sys.argv[1])

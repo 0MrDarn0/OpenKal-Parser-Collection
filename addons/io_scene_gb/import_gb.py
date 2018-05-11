@@ -6,12 +6,12 @@ import utility
 
 from mathutils import Matrix, Vector, Quaternion
 
-if 'struct_gb' in locals():
+if 'structs.gb' in locals():
     import importlib
 
-    importlib.reload(struct_gb)
+    importlib.reload(structs.gb)
 else:
-    import struct_gb
+    import structs.gb
 
 
 def add_armature(self, obj):
@@ -300,14 +300,14 @@ def read_image(path, name):
 
 def setup():
     """Adds custom Blender import methods to GB objects"""
-    struct_gb.GBAnimation.add_animation = add_animation
-    struct_gb.GBArmature.add_armature = add_armature
-    struct_gb.GBTransformation.matrix = matrix
-    struct_gb.GBCollision.add_mesh = add_mesh
-    struct_gb.GBMesh.add_mesh = add_mesh
-    struct_gb.GBMesh.add_groups = add_groups
-    struct_gb.GBMesh.add_materials = add_materials
-    struct_gb.GBMesh.add_material_animation = add_material_animation
+    structs.gb.GBAnimation.add_animation = add_animation
+    structs.gb.GBArmature.add_armature = add_armature
+    structs.gb.GBTransformation.matrix = matrix
+    structs.gb.GBCollision.add_mesh = add_mesh
+    structs.gb.GBMesh.add_mesh = add_mesh
+    structs.gb.GBMesh.add_groups = add_groups
+    structs.gb.GBMesh.add_materials = add_materials
+    structs.gb.GBMesh.add_material_animation = add_material_animation
 
 
 def auto_import(context, filepath, parent,
@@ -321,7 +321,7 @@ def auto_import(context, filepath, parent,
 
     # Load GB
     with open(filepath, 'rb') as stream:
-        gb = struct_gb.GBFile().parse(stream)
+        gb = structs.gb.GBFile().parse(stream)
 
     # Get existing or create new parent object
     if parent not in bpy.data.objects:

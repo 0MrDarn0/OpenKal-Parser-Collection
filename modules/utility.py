@@ -1,7 +1,18 @@
 import os
 import numpy as np
 
+from struct import pack
 from struct import unpack
+
+
+class ValidationError(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
+class VersionError(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
 
 _CRC32_TABLE = [
     0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3,
@@ -58,10 +69,10 @@ def _get_crypt_table(name):
 _TABLE_ENCRYPT = _get_crypt_table('table_encrypt')
 _TABLE_DECRYPT = _get_crypt_table('table_decrypt')
 
-def decrypt_s(key, value):
+def decrypt_value(key, value):
     return _TABLE_DECRYPT[key][value]
 
-def encrypt_s(key, value):
+def encrypt_value(key, value):
     return _TABLE_ENCRYPT[key][value]
 
 def decrypt(key, values):
@@ -70,14 +81,44 @@ def decrypt(key, values):
 def encrypt(key, values):
     return [_TABLE_ENCRYPT[key][v] for v in values]
 
+def decrypt_stream(key, source, target):
+    for data in iter(lambda: source.read(128 * 1024), b''):
+        target.write(bytearray(decrypt(key, data)))
 
-class ValidationError(Exception):
-    def __init__(self, message):
-        super().__init__(message)
+def encrypt_stream(key, source, target):
+    for data in iter(lambda: source.read(128 * 1024), b''):
+        target.write(bytearray(encrypt(key, data)))
 
-class VersionError(Exception):
-    def __init__(self, message):
-        super().__init__(message)
+
+def decrypt_gtx(source, target):
+    preamble = unpack('<Q', source.read(8))[0]
+    if preamble != 0x7C204C414B:
+        raise ValidationError('Not a valid GTX image')
+
+    target.write(pack('<B', ord('D')))
+    target.write(pack('<B', ord('D')))
+    target.write(pack('<B', ord('S')))
+    target.write(pack('<B', ord(' ')))
+    target.write(pack('<I', 124))
+    target.write(bytearray(decrypt(4, source.read(64))))
+
+    for data in iter(lambda: source.read(128 * 1024), b''):
+        target.write(data)
+
+def encrypt_dds(source, target):
+    preamble = unpack('<Q', source.read(8))[0]
+    if preamble != 0x7C20534444:
+        raise ValidationError('Not a valid DDS image')
+
+    target.write(pack('<B', ord('K')))
+    target.write(pack('<B', ord('A')))
+    target.write(pack('<B', ord('L')))
+    target.write(pack('<B', ord(' ')))
+    target.write(pack('<I', 124))
+    target.write(bytearray(encrypt(4, source.read(64))))
+
+    for data in iter(lambda: source.read(128 * 1024), b''):
+        target.write(data)
 
 
 def get_root_path(path):
