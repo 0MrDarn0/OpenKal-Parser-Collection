@@ -6,7 +6,7 @@ import utility
 
 from mathutils import Matrix, Vector, Quaternion
 
-if 'structs.gb' in locals():
+if 'structs' in locals():
     import importlib
 
     importlib.reload(structs.gb)
