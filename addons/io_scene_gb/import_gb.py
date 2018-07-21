@@ -310,10 +310,7 @@ def setup():
     structs.gb.GBMesh.add_material_animation = add_material_animation
 
 
-def auto_import(context, filepath, parent,
-        import_dds=False,
-        import_sfx=False):
-
+def auto_import(context, filepath, parent, **args):
     setup()
 
     # The cycles renderer is needed for material nodes
@@ -379,7 +376,7 @@ def auto_import(context, filepath, parent,
         mesh.add_mesh(obj)
         mesh.add_groups(obj)
 
-        if import_dds:
+        if args.get('import_dds', False):
             image = read_image(path, mesh.material.texture.lower())
         else:
             image = None
@@ -413,7 +410,7 @@ def auto_import(context, filepath, parent,
                             obj, animation.keyframe_frames)
 
     # Add collision
-    if gb.collision is not None:
+    if args.get('import_col', False) and gb.collision is not None:
         dat = bpy.data.meshes.new('Mesh')
         obj = bpy.data.objects.new(name + '_Collision', dat)
 

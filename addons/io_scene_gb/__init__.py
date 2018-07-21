@@ -33,6 +33,7 @@ class ImportGB(bpy.types.Operator, ImportHelper):
 
     import_dds = bpy.props.BoolProperty(name='Import DDS')
     import_sfx = bpy.props.BoolProperty(name='Import SFX', options={'HIDDEN'})
+    import_col = bpy.props.BoolProperty(name='Import Collision')
 
     filename_ext = '.gb'
     filter_glob = bpy.props.StringProperty(
