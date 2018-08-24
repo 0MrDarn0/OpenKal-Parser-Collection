@@ -59,7 +59,7 @@ def add_animation(self, obj, pose_matrices):
     )
 
     for keyframe, frame, event in zipped:
-        frame = (frame / 1000) * 24
+        frame = frame * 24 // 1000
 
         for i, m in enumerate(keyframe):
             pose = obj.pose.bones['Bone_%03d' % i]
