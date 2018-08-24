@@ -219,9 +219,9 @@ class GBMesh(object):
         result = []
         for i in range(len(indexes) - 2):
             if i & 1:
-                result.extend([indexes[i], indexes[i + 1], indexes[i + 2]])
-            else:
                 result.extend([indexes[i], indexes[i + 2], indexes[i + 1]])
+            else:
+                result.extend([indexes[i], indexes[i + 1], indexes[i + 2]])
 
         return result
 
