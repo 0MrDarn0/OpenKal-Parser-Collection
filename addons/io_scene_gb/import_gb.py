@@ -376,8 +376,11 @@ def auto_import(context, filepath, parent, **args):
         mesh.add_mesh(obj)
         mesh.add_groups(obj)
 
-        if args.get('import_dds', False):
-            image = read_image(path, mesh.material.texture.lower())
+        if args.get('import_tex', False):
+            name = os.path.splitext(
+                    mesh.material.texture.lower())[0]
+
+            image = read_image(path, name + '.' + args['texture_ext'])
         else:
             image = None
 

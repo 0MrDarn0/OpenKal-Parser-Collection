@@ -28,14 +28,24 @@ class ImportGB(bpy.types.Operator, ImportHelper):
     bl_label  = 'Import GB'
 
     parent = bpy.props.StringProperty(
-        name='Object Name', default='Untitled',
+        name='Parent Object', default='Untitled',
     )
 
-    import_dds = bpy.props.BoolProperty(name='Import DDS')
-    import_sfx = bpy.props.BoolProperty(name='Import SFX', options={'HIDDEN'})
+    import_tex = bpy.props.BoolProperty(name='Import Textures')
     import_col = bpy.props.BoolProperty(name='Import Collision')
 
+    supported_tex_exts = (
+        ('dds', 'DDS', ''),
+        ('png', 'PNG', ''),
+        ('tga', 'TGA', ''),
+    )
+
+    texture_ext = bpy.props.EnumProperty(
+        name='Texture Format', items=supported_tex_exts
+    )
+
     filename_ext = '.gb'
+
     filter_glob = bpy.props.StringProperty(
         default='*.gb', options={'HIDDEN'},
     )
