@@ -343,7 +343,7 @@ class GBCollision(object):
         self.verts = [{'v' : v} for v in
                 self.scale * self.verts + self.bounding_box_min]
 
-        self.faces = GBMesh.rmdupes(self.faces) // 3
+        self.faces = GBMesh.rmdupes(self.faces // 3)
 
         return self
 
