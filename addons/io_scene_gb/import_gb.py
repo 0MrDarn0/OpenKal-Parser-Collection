@@ -27,10 +27,10 @@ def add_armature(self, obj):
     ])
 
     for i, bone in enumerate(self.bones):
-        edit = obj.data.edit_bones.new('Bone_%03d' % i)
+        edit = obj.data.edit_bones.new('Bone.%03d' % i)
 
         if bone.parent != 0xFF:
-            edit.parent = obj.data.edit_bones['Bone_%03d' % bone.parent]
+            edit.parent = obj.data.edit_bones['Bone.%03d' % bone.parent]
 
         # Prevents automatic deletion due to a length of zero
         edit.head = Vector([0, 0, 0])
@@ -67,7 +67,7 @@ def add_animation(self, obj, pose_matrices):
         frame = frame * 24 // 1000
 
         for i, m in enumerate(keyframe):
-            pose = obj.pose.bones['Bone_%03d' % i]
+            pose = obj.pose.bones['Bone.%03d' % i]
 
             matrix = pose_matrices[m]
 
@@ -121,7 +121,7 @@ def add_mesh(self, obj):
 def add_groups(self, obj):
     groups = []
     for index in self.bones:
-        groups.append(obj.vertex_groups.new('Bone_%03d' % index))
+        groups.append(obj.vertex_groups.new('Bone.%03d' % index))
 
     for i, v in enumerate(self.verts):
         if 'weights' in v:
@@ -140,8 +140,8 @@ def add_groups(self, obj):
                     group.add([i], 1.0, 'ADD')
 
 
-def add_materials(self, obj, image=None):
-    mat = bpy.data.materials.new('Material')
+def add_materials(self, obj, name, image=None):
+    mat = bpy.data.materials.new(name + '_Material.000')
     mat.use_nodes = True
 
     obj.data.materials.append(mat)
@@ -344,8 +344,8 @@ def auto_import(context, filepath, parent, **args):
 
     # Add armature
     if gb.armature is not None:
-        dat = bpy.data.armatures.new('Armature')
-        obj = bpy.data.objects.new(name + '_Armature', dat)
+        dat = bpy.data.armatures.new(name + '_Armature.000')
+        obj = bpy.data.objects.new(name + '_Armature.000', dat)
 
         context.scene.objects.link(obj)
         context.scene.objects.active = obj
@@ -356,7 +356,7 @@ def auto_import(context, filepath, parent, **args):
         # Link to existing meshes
         for mesh in parent.children:
             if mesh.type == 'MESH':
-                mesh.modifiers.new('Armature', 'ARMATURE').object = obj
+                mesh.modifiers.new(name + '_Modifier.000', 'ARMATURE').object = obj
 
     # Get armature object if it exists
     for armature in parent.children:
@@ -370,8 +370,8 @@ def auto_import(context, filepath, parent, **args):
 
     # Add meshes
     for mesh in gb.meshes:
-        dat = bpy.data.meshes.new('Mesh')
-        obj = bpy.data.objects.new(name + '_Mesh', dat)
+        dat = bpy.data.meshes.new(name + '_Mesh.000')
+        obj = bpy.data.objects.new(name + '_Mesh.000', dat)
 
         context.scene.objects.link(obj)
         context.scene.objects.active = obj
@@ -381,18 +381,16 @@ def auto_import(context, filepath, parent, **args):
         mesh.add_groups(obj)
 
         if args.get('import_tex', False):
-            name = os.path.splitext(
-                    mesh.material.texture.lower())[0]
-
-            image = read_image(path, name + '.' + args['texture_ext'])
+            image = read_image(path, os.path.splitext(
+                mesh.material.texture.lower())[0] + '.' + args['texture_ext'])
         else:
             image = None
 
-        mesh.add_materials(obj, image)
+        mesh.add_materials(obj, name, image)
 
         # Link to existing armature
         if armature is not None:
-            obj.modifiers.new('Armature', 'ARMATURE').object = armature
+            obj.modifiers.new(name + '_Armature.000', 'ARMATURE').object = armature
 
         mesh_mapping[obj.name] = (mesh, obj)
 
@@ -406,20 +404,20 @@ def auto_import(context, filepath, parent, **args):
             else:
                 armature.animation_data_create()
                 armature.animation_data.action = (
-                        bpy.data.actions.new(name=name))
+                        bpy.data.actions.new(name=name + '.000'))
 
                 animation.add_animation(armature, pose_matrices)
 
             # Animate materials
-            for name, (mesh, obj) in mesh_mapping.items():
+            for _, (mesh, obj) in mesh_mapping.items():
                 if mesh.material.provides_animation:
                     mesh.add_material_animation(
                             obj, animation.keyframe_frames)
 
     # Add collision
     if args.get('import_col', False) and gb.collision is not None:
-        dat = bpy.data.meshes.new('Mesh')
-        obj = bpy.data.objects.new(name + '_Collision', dat)
+        dat = bpy.data.meshes.new(name + '_Collision.000')
+        obj = bpy.data.objects.new(name + '_Collision.000', dat)
 
         context.scene.objects.link(obj)
         context.scene.objects.active = obj
