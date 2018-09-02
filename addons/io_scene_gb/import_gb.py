@@ -36,7 +36,12 @@ def add_armature(self, obj):
         edit.head = Vector([0, 0, 0])
         edit.tail = Vector([1, 0, 0])
 
-        edit.matrix = Matrix(bone.matrix).inverted() * p
+        position,\
+        rotation,\
+        scale = (Matrix(bone.matrix).inverted() * p).decompose()
+
+        # The scale can trigger an internal assertion in Blender, 
+        edit.matrix = Matrix.Translation(position) * rotation.to_matrix().to_4x4()
 
     bpy.ops.object.mode_set(mode='OBJECT')
 
