@@ -297,8 +297,7 @@ def read_image(path, name):
                     os.path.join(path, 'tex', name), True)
 
         except RuntimeError:
-            print('Warning: Could not open "%s".'
-                    % os.path.join(path, 'tex', name))
+            pass  # Ignore, since Blender will print an error message
 
     return None
 
