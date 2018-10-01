@@ -61,15 +61,14 @@ class ENVFile(object):
         if version != 7:
             raise VersionError('ENV version %d is unsupported' % version)
 
-        self.decals = [None] * unpack('<I', stream.read(4))[0]
+        self.decals = []
         self.lights = []
         self.layers = []
 
-        for _ in range(len(self.decals)):
-            i = unpack('<I', stream.read(4))[0]
-
-            # The prepended index usually corresponds to the actual index
-            self.decals[i] = utility.read_string_pre(stream)
+        for _ in range(unpack('<I', stream.read(4))[0]):
+            self.decals.append(
+                (unpack('<I', stream.read(4))[0], utility.read_string_pre(stream))
+            )
 
         for _ in range(24):
             self.lights.append(ENVLight().parse(stream))
