@@ -18,13 +18,9 @@ def add_armature(self, obj):
     bpy.context.scene.objects.active = obj
     bpy.ops.object.mode_set(mode='EDIT')
 
-    # Inverted permutation matrix
-    p = Matrix([
-        [ 0, 1, 0, 0],
-        [-1, 0, 0, 0],
-        [ 0, 0, 1, 0],
-        [ 0, 0, 0, 1],
-    ])
+    # Converts DirectX/OpenGL coordinate system difference, where p2 is without scale, since it's not imported
+    p1 = (Matrix.Scale(-1, 4, (0, 1, 0)) * Matrix.Rotation(math.pi / 2, 4, 'X'))
+    p2 = (Matrix.Scale( 1, 4, (0, 1, 0)) * Matrix.Rotation(math.pi / 2, 4, 'Z')).inverted()
 
     for i, bone in enumerate(self.bones):
         edit = obj.data.edit_bones.new('Bone.%03d' % i)
@@ -38,10 +34,10 @@ def add_armature(self, obj):
 
         position,\
         rotation,\
-        scale = (Matrix(bone.matrix).inverted() * p).decompose()
+        scale = (Matrix(bone.matrix).inverted() * p2).decompose()
 
-        # The scale can trigger an internal assertion in Blender.
-        edit.matrix = Matrix.Translation(position) * rotation.to_matrix().to_4x4()
+        # The scale can trigger an internal assertion in Blender
+        edit.matrix = p1 * Matrix.Translation(position) * rotation.to_matrix().to_4x4()
 
     bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -50,12 +46,9 @@ def add_animation(self, obj, pose_matrices):
     bpy.context.scene.objects.active = obj
     bpy.ops.object.mode_set(mode='POSE')
 
-    p = Matrix([
-        [ 0, 1, 0, 0],
-        [-1, 0, 0, 0],
-        [ 0, 0, 1, 0],
-        [ 0, 0, 0, 1],
-    ])
+    # Converts DirectX/OpenGL coordinate system difference
+    p1 = (Matrix.Scale(-1, 4, (0, 1, 0)) * Matrix.Rotation(math.pi / 2, 4, 'X'))
+    p2 = (Matrix.Scale(-1, 4, (1, 0, 0)) * Matrix.Rotation(math.pi / 2, 4, 'Z')).inverted()
 
     zipped = zip(
         self.keyframes,
@@ -64,7 +57,7 @@ def add_animation(self, obj, pose_matrices):
     )
 
     for keyframe, frame, event in zipped:
-        frame = frame * 24 // 1000
+        frame = math.ceil(frame * 30 / 1000)
 
         for i, m in enumerate(keyframe):
             pose = obj.pose.bones['Bone.%03d' % i]
@@ -74,7 +67,7 @@ def add_animation(self, obj, pose_matrices):
             for parent in pose.parent_recursive:
                 matrix = pose_matrices[keyframe[int(parent.name[-3:])]] * matrix
 
-            pose.matrix = matrix * p
+            pose.matrix = p1 * matrix * p2
 
             bpy.context.scene.update()
 
@@ -102,7 +95,7 @@ def add_mesh(self, obj):
     bm.faces.index_update()
     bm.faces.ensure_lookup_table()
 
-    # Texture coordinates
+    # Texture coordinates, ignoring a possible second channel
     if getattr(self, 'material', False):
         uv_layer = bm.loops.layers.uv.verify()
 
@@ -113,6 +106,15 @@ def add_mesh(self, obj):
                 uv = l[uv_layer].uv
                 uv[0] = +self.verts[v_index]['t0'][0]
                 uv[1] = -self.verts[v_index]['t0'][1]
+
+    # Converts DirectX/OpenGL coordinate system difference
+    bm.transform(
+        Matrix.Scale(-1, 4, (0, 1, 0)) * Matrix.Rotation(math.pi / 2, 4, 'X')
+    )
+
+    # Flip normals due to negative scaling
+    for f in bm.faces:
+        f.normal_flip()
 
     bm.to_mesh(obj.data)
     bm.free()
@@ -327,10 +329,6 @@ def auto_import(context, filepath, parent, **args):
     # Get existing or create new parent object
     if parent not in bpy.data.objects:
         parent = bpy.data.objects.new(parent, None)
-
-        # Converts DirectX/OpenGL coordinate system difference
-        parent.matrix_world *= Matrix.Rotation(-math.pi / 2, 4, 'X')
-        parent.matrix_world *= Matrix.Scale(-1, 4, (0, 1, 0))
 
         context.scene.objects.link(parent)
         context.scene.objects.active = parent
