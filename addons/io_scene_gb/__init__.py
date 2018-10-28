@@ -44,6 +44,8 @@ class ImportGB(bpy.types.Operator, ImportHelper):
         name='Texture Format', items=supported_tex_exts
     )
 
+    scale = bpy.props.FloatProperty(name='Scale', default=1.0)
+
     filename_ext = '.gb'
 
     filter_glob = bpy.props.StringProperty(

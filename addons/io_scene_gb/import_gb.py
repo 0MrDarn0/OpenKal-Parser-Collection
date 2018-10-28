@@ -36,8 +36,8 @@ def add_armature(self, obj):
         rotation,\
         scale = (Matrix(bone.matrix).inverted() * p2).decompose()
 
-        # The scale can trigger an internal assertion in Blender
-        edit.matrix = p1 * Matrix.Translation(position) * rotation.to_matrix().to_4x4()
+        # The imported scale can trigger an internal assertion in Blender
+        edit.matrix = Matrix.Scale(SCALE, 4) * p1 * Matrix.Translation(position) * rotation.to_matrix().to_4x4()
 
     bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -67,7 +67,11 @@ def add_animation(self, obj, pose_matrices):
             for parent in pose.parent_recursive:
                 matrix = pose_matrices[keyframe[int(parent.name[-3:])]] * matrix
 
-            pose.matrix = p1 * matrix * p2
+            matrix = Matrix.Scale(1 if SCALE > 0 else -1, 4) * p1 * matrix * p2
+            matrix[0][3] *= abs(SCALE)
+            matrix[1][3] *= abs(SCALE)
+            matrix[2][3] *= abs(SCALE)
+            pose.matrix = matrix
 
             bpy.context.scene.update()
 
@@ -109,7 +113,7 @@ def add_mesh(self, obj):
 
     # Converts DirectX/OpenGL coordinate system difference
     bm.transform(
-        Matrix.Scale(-1, 4, (0, 1, 0)) * Matrix.Rotation(math.pi / 2, 4, 'X')
+        Matrix.Scale(SCALE, 4) * Matrix.Scale(-1, 4, (0, 1, 0)) * Matrix.Rotation(math.pi / 2, 4, 'X')
     )
 
     # Flip normals due to negative scaling
@@ -315,9 +319,17 @@ def setup():
     structs.gb.GBMesh.add_materials = add_materials
     structs.gb.GBMesh.add_material_animation = add_material_animation
 
+SCALE = 1
 
-def auto_import(context, filepath, parent, **args):
+def auto_import(context, filepath, parent, scale, **args):
     setup()
+
+    if scale == 0:
+        return {'CANCELLED'}
+
+    global SCALE
+
+    SCALE = scale
 
     # The cycles renderer is needed for material nodes
     bpy.context.scene.render.engine = 'CYCLES'
